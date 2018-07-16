@@ -1,5 +1,5 @@
 #include "hotstuff/entity.h"
-#include "hotstuff/core.h"
+#include "hotstuff/hotstuff.h"
 
 namespace hotstuff {
 

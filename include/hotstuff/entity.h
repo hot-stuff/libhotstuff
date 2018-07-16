@@ -10,9 +10,9 @@
 
 #include "salticidae/netaddr.h"
 #include "salticidae/ref.h"
-#include "type.h"
-#include "util.h"
-#include "crypto.h"
+#include "hotstuff/type.h"
+#include "hotstuff/util.h"
+#include "hotstuff/crypto.h"
 
 namespace hotstuff {
 

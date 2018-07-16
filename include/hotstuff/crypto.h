@@ -1,14 +1,11 @@
 #ifndef _HOTSTUFF_CRYPTO_H
 #define _HOTSTUFF_CRYPTO_H
 
-#include "salticidae/crypto.h"
-#include "salticidae/ref.h"
-#include "secp256k1.h"
 #include <openssl/rand.h>
-#include "type.h"
 
-using salticidae::RcObj;
-using salticidae::BoxObj;
+#include "secp256k1.h"
+#include "salticidae/crypto.h"
+#include "hotstuff/type.h"
 
 namespace hotstuff {
 

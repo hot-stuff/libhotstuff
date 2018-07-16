@@ -8,16 +8,16 @@
 #include "hotstuff/type.h"
 #include "hotstuff/client.h"
 
-using salticidae::NetAddr;
 using salticidae::Config;
 using salticidae::ElapsedTime;
-using salticidae::EventContext;
-using salticidae::Event;
-using salticidae::bytearray_t;
 using salticidae::trim_all;
 using salticidae::split;
 
+using hotstuff::NetAddr;
+using hotstuff::EventContext;
+using hotstuff::Event;
 using hotstuff::uint256_t;
+using hotstuff::bytearray_t;
 using hotstuff::MsgClient;
 using hotstuff::CommandDummy;
 using hotstuff::Finality;

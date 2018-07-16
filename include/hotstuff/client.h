@@ -1,9 +1,9 @@
 #ifndef _HOTSTUFF_CLIENT_H
 #define _HOTSTUFF_CLIENT_H
 
-#include "type.h"
 #include "salticidae/msg.h"
-#include "entity.h"
+#include "hotstuff/type.h"
+#include "hotstuff/entity.h"
 
 namespace hotstuff {
 

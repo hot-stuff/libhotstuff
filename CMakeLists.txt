@@ -30,12 +30,25 @@ add_dependencies(secp256k1 libsecp256k1)
 
 include_directories(include)
 add_library(hotstuff
-    src/entity.cpp
-    src/core.cpp
+    OBJECT
+    src/util.cpp
     src/client.cpp
     src/crypto.cpp
-    src/util.cpp)
-target_link_libraries(hotstuff salticidae secp256k1 crypto)
+    src/entity.cpp
+    src/consensus.cpp
+    src/hotstuff.cpp
+    )
+
+option(BUILD_SHARED "build shared library." OFF)
+if(BUILD_SHARED)
+    set_property(TARGET hotstuff PROPERTY POSITION_INDEPENDENT_CODE 1)
+    add_library(hotstuff_shared SHARED $<TARGET_OBJECTS:hotstuff>)
+    set_target_properties(hotstuff_shared PROPERTIES OUTPUT_NAME "hotstuff")
+    target_link_libraries(hotstuff_shared salticidae_static secp256k1 crypto)
+endif()
+add_library(hotstuff_static STATIC $<TARGET_OBJECTS:hotstuff>)
+set_target_properties(hotstuff_static PROPERTIES OUTPUT_NAME "hotstuff")
+target_link_libraries(hotstuff_static salticidae_static secp256k1 crypto)
 
 add_subdirectory(test)
 
@@ -54,16 +67,16 @@ endif()
 # add executables
 
 add_executable(hotstuff-app
-    src/hotstuff.cpp)
-target_link_libraries(hotstuff-app hotstuff)
+    src/hotstuff_app.cpp)
+target_link_libraries(hotstuff-app hotstuff_static)
 
 add_executable(hotstuff-client
     src/hotstuff_client.cpp)
-target_link_libraries(hotstuff-client hotstuff)
+target_link_libraries(hotstuff-client hotstuff_static)
 
 add_executable(hotstuff-keygen
     src/hotstuff_keygen.cpp)
-target_link_libraries(hotstuff-keygen hotstuff)
+target_link_libraries(hotstuff-keygen hotstuff_static)
 
 find_package(Doxygen)
 if (DOXYGEN_FOUND)
@@ -80,7 +93,3 @@ macro(remove_cxx_flag flag)
 endmacro()
 
 remove_cxx_flag("-DNDEBUG")
-#message(${CMAKE_CXX_FLAGS_RELEASE})
-#remove_cxx_flag("-O3")
-#set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O2")
-#message(${CMAKE_CXX_FLAGS_RELEASE})
