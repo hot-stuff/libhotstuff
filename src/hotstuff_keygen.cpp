@@ -1,6 +1,6 @@
 #include <error.h>
 #include "salticidae/util.h"
-#include "crypto.h"
+#include "hotstuff/crypto.h"
 
 using salticidae::Config;
 using hotstuff::privkey_bt;

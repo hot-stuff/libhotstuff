@@ -1,5 +1,5 @@
-#include "entity.h"
-#include "crypto.h"
+#include "hotstuff/entity.h"
+#include "hotstuff/crypto.h"
 
 namespace hotstuff {
 

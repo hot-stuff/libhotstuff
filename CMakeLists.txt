@@ -28,6 +28,7 @@ add_dependencies(secp256k1 libsecp256k1)
 
 # add libraries
 
+include_directories(include)
 add_library(hotstuff
     src/entity.cpp
     src/core.cpp

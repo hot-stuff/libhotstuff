@@ -1,4 +1,4 @@
-#include "client.h"
+#include "hotstuff/client.h"
 
 namespace hotstuff {
 

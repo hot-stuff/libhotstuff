@@ -1,4 +1,4 @@
-#include "crypto.h"
+#include "hotstuff/crypto.h"
 
 using namespace hotstuff;
 

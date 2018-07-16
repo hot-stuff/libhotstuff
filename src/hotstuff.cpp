@@ -11,12 +11,13 @@
 #include "salticidae/util.h"
 #include "salticidae/network.h"
 #include "salticidae/msg.h"
-#include "promise.hpp"
-#include "type.h"
-#include "core.h"
-#include "entity.h"
-#include "util.h"
-#include "client.h"
+
+#include "hotstuff/promise.hpp"
+#include "hotstuff/type.h"
+#include "hotstuff/core.h"
+#include "hotstuff/entity.h"
+#include "hotstuff/util.h"
+#include "hotstuff/client.h"
 
 using promise::promise_t;
 using salticidae::NetAddr;

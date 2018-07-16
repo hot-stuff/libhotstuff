@@ -3,9 +3,10 @@
 #include "salticidae/netaddr.h"
 #include "salticidae/network.h"
 #include "salticidae/util.h"
-#include "util.h"
-#include "type.h"
-#include "client.h"
+
+#include "hotstuff/util.h"
+#include "hotstuff/type.h"
+#include "hotstuff/client.h"
 
 using salticidae::NetAddr;
 using salticidae::Config;

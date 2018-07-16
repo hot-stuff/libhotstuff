@@ -1,5 +1,5 @@
 #include <stack>
-#include "core.h"
+#include "hotstuff/core.h"
 
 using salticidae::DataStream;
 using salticidae::static_pointer_cast;
