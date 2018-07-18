@@ -70,6 +70,13 @@ class HotStuffApp: public HotStuff {
     /** checks if a cmd is decided */
     inline void client_check_cmd_handler(const MsgClient &, conn_client_t);
 
+    Finality get_finality(const command_t &cmd) const {
+        hotstuff::block_t blk = cmd->get_container();
+        return Finality(get_id(),
+                        cmd->get_decision(),
+                        blk ? blk->get_hash() : uint256_t());
+    }
+
     /** The callback function to print stat */
     inline void print_stat_cb(evutil_socket_t, short);
 
@@ -203,7 +210,7 @@ HotStuffApp::HotStuffApp(uint32_t blk_size,
                         NetAddr clisten_addr,
                         const EventContext &eb):
     HotStuff(blk_size, parent_limit, idx, raw_privkey,
-            plisten_addr, eb),
+            plisten_addr, eb, new hotstuff::PaceMakerDummyFixed(1)),
     stat_period(stat_period),
     eb(eb),
     cn(eb),
@@ -217,9 +224,9 @@ HotStuffApp::HotStuffApp(uint32_t blk_size,
 void HotStuffApp::client_request_cmd_handler(const MsgClient &msg, conn_client_t conn_) {
     auto conn = static_pointer_cast<ClientNetwork<MsgClient>::Conn>(conn_);
     const NetAddr addr = conn->get_addr();
-    command_t cmd = new CommandDummy();
+    command_t cmd;
     std::vector<promise_t> pms;
-    msg.parse_reqcmd(static_cast<CommandDummy &>(*cmd));
+    msg.parse_reqcmd(cmd, this);
 
     bool flag = true;
 #ifndef HOTSTUFF_DISABLE_TX_VERIFY
@@ -229,20 +236,30 @@ void HotStuffApp::client_request_cmd_handler(const MsgClient &msg, conn_client_t
     {
         LOG_WARN("invalid client cmd");
         MsgClient resp;
-        resp.gen_respcmd(cmd->get_hash(), Finality(-1, uint256_t()));
+        resp.gen_respcmd(cmd->get_hash(), Finality(get_id(), -1, uint256_t()));
         cn.send_msg(resp, addr);
     }
     else
     {
         const uint256_t cmd_hash = cmd->get_hash();
-        add_command(cmd);
-        /** wait for the decision of tx */
-        LOG_DEBUG("processing client cmd %.10s", get_hex(cmd_hash).c_str());
-        async_decide(cmd_hash).then([this, addr](command_t cmd) {
+        ReplicaID rid = add_command(cmd);
+        if (rid == get_id())
+        {
+            /** wait for the decision of tx */
+            LOG_DEBUG("processing client cmd %.10s", get_hex(cmd_hash).c_str());
+            async_decide(cmd_hash).then([this, addr](command_t cmd) {
+                MsgClient resp;
+                resp.gen_respcmd(cmd->get_hash(), get_finality(cmd));
+                cn.send_msg(resp, addr);
+            });
+        }
+        else
+        {
+            LOG_INFO("redirect");
             MsgClient resp;
-            resp.gen_respcmd(cmd->get_hash(), cmd->get_finality());
+            resp.gen_respcmd(cmd_hash, Finality(rid, 0, cmd_hash));
             cn.send_msg(resp, addr);
-        });
+        }
     }
 }
 
@@ -254,7 +271,7 @@ void HotStuffApp::client_check_cmd_handler(const MsgClient &msg, conn_client_t c
     MsgClient resp;
     command_t cmd = storage->find_cmd(cmd_hash);
     Finality fin;
-    if (cmd) fin = cmd->get_finality();
+    if (cmd) fin = get_finality(cmd);
     resp.gen_respcmd(cmd_hash, fin);
     cn.send_msg(resp, addr);
 }

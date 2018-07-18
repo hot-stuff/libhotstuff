@@ -1,6 +1,7 @@
 #ifndef _HOTSTUFF_CONSENSUS_H
 #define _HOTSTUFF_CONSENSUS_H
 
+#include <cassert>
 #include <set>
 #include <unordered_map>
 
@@ -125,7 +126,7 @@ class HotStuffCore {
     block_t get_genesis() { return b0; }
     const ReplicaConfig &get_config() { return config; }
     int8_t get_cmd_decision(const uint256_t &cmd_hash);
-    ReplicaID get_id() { return id; }
+    ReplicaID get_id() const { return id; }
     operator std::string () const;
 };
 

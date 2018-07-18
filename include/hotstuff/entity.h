@@ -73,26 +73,6 @@ class HotStuffCore;
 using block_t = salticidae::RcObj<Block>;
 using block_weak_t = salticidae::WeakObj<Block>;
 
-struct Finality: public Serializable {
-    int8_t decision;
-    uint256_t blk_hash;
-    
-    public:
-    Finality(): decision(0) {}
-    Finality(int8_t decision, uint256_t blk_hash):
-        decision(decision), blk_hash(blk_hash) {}
-
-    void serialize(DataStream &s) const override {
-        s << decision;
-        if (decision == 1) s << blk_hash;
-    }
-
-    void unserialize(DataStream &s) override {
-        s >> decision;
-        if (decision == 1) s >> blk_hash;
-    }
-};
-
 class Command: public Serializable {
     friend HotStuffCore;
     block_weak_t container;
@@ -101,7 +81,6 @@ class Command: public Serializable {
     virtual const uint256_t &get_hash() const = 0;
     virtual bool verify() const = 0;
     inline int8_t get_decision() const;
-    inline Finality get_finality() const;
     block_t get_container() const {
         return container;
     }
@@ -218,12 +197,6 @@ struct BlockHeightCmp {
 int8_t Command::get_decision() const {
     block_t cptr = container;
     return cptr ? cptr->get_decision() : 0;
-}
-
-Finality Command::get_finality() const {
-    block_t blk = get_container();
-    return Finality(get_decision(),
-                    blk ? blk->get_hash() : uint256_t());
 }
 
 class EntityStorage {

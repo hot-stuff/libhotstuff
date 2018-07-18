@@ -153,6 +153,7 @@ class HotStuffBase: public HotStuffCore {
     void do_broadcast_proposal(const Proposal &) override;
     void do_vote(ReplicaID, const Vote &) override;
     void do_decide(const command_t &) override;
+    void do_forward(const uint256_t &cmd_hash, ReplicaID rid);
 
     public:
     HotStuffBase(uint32_t blk_size,
@@ -160,30 +161,15 @@ class HotStuffBase: public HotStuffCore {
             ReplicaID rid,
             privkey_bt &&priv_key,
             NetAddr listen_addr,
-            EventContext eb = EventContext(),
-            pacemaker_bt pmaker = nullptr);
+            EventContext eb,
+            pacemaker_bt pmaker);
 
     ~HotStuffBase();
 
     /* the API for HotStuffBase */
 
     /* Submit the command to be decided. */
-    void add_command(command_t cmd) {
-        cmd_pending.push(storage->add_cmd(cmd));
-        if (cmd_pending.size() >= blk_size)
-        {
-            std::vector<command_t> cmds;
-            for (uint32_t i = 0; i < blk_size; i++)
-            {
-                cmds.push_back(cmd_pending.front());
-                cmd_pending.pop();
-            }
-            pmaker->beat().then([this, cmds = std::move(cmds)]() {
-                on_propose(cmds);
-            });
-        }
-    }
-
+    ReplicaID add_command(command_t cmd);
     void add_replica(ReplicaID idx, const NetAddr &addr, pubkey_bt &&pub_key);
     void start(bool eb_loop = false);
 
@@ -238,13 +224,15 @@ class HotStuff: public HotStuffBase {
             ReplicaID rid,
             const bytearray_t &raw_privkey,
             NetAddr listen_addr,
-            EventContext eb = nullptr):
+            EventContext eb = EventContext(),
+            pacemaker_bt pmaker = new PaceMakerDummy()):
         HotStuffBase(blk_size,
                     parent_limit,
                     rid,
                     new PrivKeyType(raw_privkey),
                     listen_addr,
-                    eb) {}
+                    eb,
+                    std::move(pmaker)) {}
 
     void add_replica(ReplicaID idx, const NetAddr &addr, const bytearray_t &pubkey_raw) {
         DataStream s(pubkey_raw);

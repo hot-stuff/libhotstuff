@@ -70,6 +70,26 @@ void MsgHotStuff::parse_rfetchblk(std::vector<block_t> &blks, HotStuffCore *hsc)
     }
 }
 
+ReplicaID HotStuffBase::add_command(command_t cmd) {
+    ReplicaID proposer = pmaker->get_proposer();
+    if (proposer != get_id())
+        return proposer;
+    cmd_pending.push(storage->add_cmd(cmd));
+    if (cmd_pending.size() >= blk_size)
+    {
+        std::vector<command_t> cmds;
+        for (uint32_t i = 0; i < blk_size; i++)
+        {
+            cmds.push_back(cmd_pending.front());
+            cmd_pending.pop();
+        }
+        pmaker->beat().then([this, cmds = std::move(cmds)]() {
+            on_propose(cmds);
+        });
+    }
+    return proposer;
+}
+
 void HotStuffBase::add_replica(ReplicaID idx, const NetAddr &addr,
                                 pubkey_bt &&pub_key) {
     HotStuffCore::add_replica(idx, addr, std::move(pub_key));
@@ -387,8 +407,6 @@ HotStuffBase::HotStuffBase(uint32_t blk_size,
         part_delivery_time_min(double_inf),
         part_delivery_time_max(0)
 {
-    if (pmaker == nullptr)
-        this->pmaker = new PaceMakerDummy(this);
     /* register the handlers for msg from replicas */
     pn.reg_handler(PROPOSE, std::bind(&HotStuffBase::propose_handler, this, _1, _2));
     pn.reg_handler(VOTE, std::bind(&HotStuffBase::vote_handler, this, _1, _2));
@@ -405,11 +423,16 @@ void HotStuffBase::do_broadcast_proposal(const Proposal &prop) {
 }
 
 void HotStuffBase::do_vote(ReplicaID last_proposer, const Vote &vote) {
-    MsgHotStuff vote_msg;
-    vote_msg.gen_vote(vote);
     pmaker->next_proposer(last_proposer)
-            .then([this, vote_msg](ReplicaID proposer) {
-        pn.send_msg(vote_msg, get_config().get_addr(proposer));
+            .then([this, vote](ReplicaID proposer) {
+        if (proposer == get_id())
+            on_receive_vote(vote);
+        else
+        {
+            MsgHotStuff vote_msg;
+            vote_msg.gen_vote(vote);
+            pn.send_msg(vote_msg, get_config().get_addr(proposer));
+        }
     });
 }
 
@@ -422,6 +445,15 @@ void HotStuffBase::do_decide(const command_t &cmd) {
     }
 }
 
+void HotStuffBase::do_forward(const uint256_t &cmd_hash, ReplicaID rid) {
+    auto it = decision_waiting.find(cmd_hash);
+    if (it != decision_waiting.end())
+    {
+        it->second.reject(rid);
+        decision_waiting.erase(it);
+    }
+}
+
 HotStuffBase::~HotStuffBase() {}
 
 void HotStuffBase::start(bool eb_loop) {
@@ -429,6 +461,7 @@ void HotStuffBase::start(bool eb_loop) {
     uint32_t nfaulty = pn.all_peers().size() / 3;
     if (nfaulty == 0)
         LOG_WARN("too few replicas in the system to tolerate any failure");
+    pmaker->init(this);
     on_init(nfaulty);
     if (eb_loop)
         eb.dispatch();

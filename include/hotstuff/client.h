@@ -4,6 +4,7 @@
 #include "salticidae/msg.h"
 #include "hotstuff/type.h"
 #include "hotstuff/entity.h"
+#include "hotstuff/consensus.h"
 
 namespace hotstuff {
 
@@ -11,6 +12,39 @@ enum {
     REQ_CMD = 0x4,
     RESP_CMD = 0x5,
     CHK_CMD = 0x6
+};
+
+struct Finality: public Serializable {
+    ReplicaID rid;
+    int8_t decision;
+    uint256_t blk_hash;
+    
+    public:
+    Finality() = default;
+    Finality(ReplicaID rid, int8_t decision, uint256_t blk_hash):
+        rid(rid), decision(decision), blk_hash(blk_hash) {}
+
+    void serialize(DataStream &s) const override {
+        s << rid << decision;
+        if (decision == 1) s << blk_hash;
+    }
+
+    void unserialize(DataStream &s) override {
+        s >> rid >> decision;
+        if (decision == 1) s >> blk_hash;
+    }
+};
+
+struct MsgClient: public salticidae::MsgBase<> {
+    using MsgBase::MsgBase;
+    void gen_reqcmd(const Command &cmd);
+    void parse_reqcmd(command_t &cmd, HotStuffCore *hsc) const;
+
+    void gen_respcmd(const uint256_t &cmd_hash, const Finality &fin);
+    void parse_respcmd(uint256_t &cmd_hash, Finality &fin) const;
+
+    void gen_chkcmd(const uint256_t &cmd_hash);
+    void parse_chkcmd(uint256_t &cmd_hash) const;
 };
 
 class CommandDummy: public Command {
@@ -47,18 +81,6 @@ class CommandDummy: public Command {
     bool verify() const override {
         return true;
     }
-};
-
-struct MsgClient: public salticidae::MsgBase<> {
-    using MsgBase::MsgBase;
-    void gen_reqcmd(const Command &cmd);
-    void parse_reqcmd(CommandDummy &cmd) const;
-
-    void gen_respcmd(const uint256_t &cmd_hash, const Finality &fin);
-    void parse_respcmd(uint256_t &cmd_hash, Finality &fin) const;
-
-    void gen_chkcmd(const uint256_t &cmd_hash);
-    void parse_chkcmd(uint256_t &cmd_hash) const;
 };
 
 }

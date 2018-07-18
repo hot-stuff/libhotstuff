@@ -1,5 +1,10 @@
 #!/bin/bash
-for i in {0..3}; do
+rep=({0..3})
+if [[ $# -gt 0 ]]; then
+    rep=($@)
+fi
+for i in "${rep[@]}"; do
+    echo "starting replica $i"
     #valgrind ./hotstuff-app --conf hotstuff-sec${i}.conf > log${i} 2>&1 &
     ./hotstuff-app --conf hotstuff-sec${i}.conf > log${i} 2>&1 &
 done

@@ -186,7 +186,7 @@ void HotStuffCore::on_receive_proposal(const Proposal &prop) {
             (opinion ?
                 create_part_cert(*priv_key, bnew->get_hash()) :
                 nullptr),
-            nullptr));
+            this));
 }
 
 void HotStuffCore::on_receive_vote(const Vote &vote) {

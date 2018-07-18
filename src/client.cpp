@@ -11,9 +11,9 @@ void MsgClient::gen_reqcmd(const Command &cmd) {
     set_payload(std::move(s));
 }
 
-void MsgClient::parse_reqcmd(CommandDummy &cmd) const {
+void MsgClient::parse_reqcmd(command_t &cmd, HotStuffCore *hsc) const {
     DataStream s(get_payload());
-    s >> cmd;
+    cmd = hsc->parse_cmd(s);
 }
 
 void MsgClient::gen_respcmd(const uint256_t &cmd_hash, const Finality &fin) {
