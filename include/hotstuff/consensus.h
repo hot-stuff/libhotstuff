@@ -40,14 +40,11 @@ class HotStuffCore {
 
     protected:
     ReplicaID id;                  /**< identity of the replica itself */
-    const int32_t parent_limit;         /**< maximum number of parents */
 
     public:
     BoxObj<EntityStorage> storage;
 
-    HotStuffCore(ReplicaID id,
-                privkey_bt &&priv_key,
-                int32_t parent_limit);
+    HotStuffCore(ReplicaID id, privkey_bt &&priv_key);
     virtual ~HotStuffCore() = default;
 
     /* Inputs of the state machine triggered by external events, should called
@@ -73,8 +70,11 @@ class HotStuffCore {
      * The block mentioned in the message should be already delivered. */
     void on_receive_vote(const Vote &vote);
 
-    /** Call to submit new commands to be decided (executed). */
-    void on_propose(const std::vector<command_t> &cmds);
+    /** Call to submit new commands to be decided (executed). "Parents" must
+     * contain at least one block, and the first block is the actual parent,
+     * while the others are uncles/aunts */
+    void on_propose(const std::vector<command_t> &cmds,
+                    const std::vector<block_t> &parents);
 
     /* Functions required to construct concrete instances for abstract classes.
      * */
@@ -127,6 +127,7 @@ class HotStuffCore {
     const ReplicaConfig &get_config() { return config; }
     int8_t get_cmd_decision(const uint256_t &cmd_hash);
     ReplicaID get_id() const { return id; }
+    const std::set<block_t, BlockHeightCmp> get_tails() const { return tails; }
     operator std::string () const;
 };
 

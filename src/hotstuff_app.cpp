@@ -61,6 +61,7 @@ class HotStuffApp: public HotStuff {
     Event ev_stat_timer;
     /** the binding address for client RPC */
     NetAddr clisten_addr;
+    int32_t parent_limit;
 
     using conn_client_t = MsgNetwork<MsgClient>::conn_t;
 
@@ -209,12 +210,14 @@ HotStuffApp::HotStuffApp(uint32_t blk_size,
                         NetAddr plisten_addr,
                         NetAddr clisten_addr,
                         const EventContext &eb):
-    HotStuff(blk_size, parent_limit, idx, raw_privkey,
-            plisten_addr, eb, new hotstuff::PaceMakerDummyFixed(1)),
+    HotStuff(blk_size, idx, raw_privkey,
+            plisten_addr,
+            new hotstuff::PaceMakerDummyFixed(1, parent_limit), eb),
     stat_period(stat_period),
     eb(eb),
     cn(eb),
-    clisten_addr(clisten_addr) {
+    clisten_addr(clisten_addr),
+    parent_limit(parent_limit) {
     /* register the handlers for msg from clients */
     cn.reg_handler(hotstuff::REQ_CMD, std::bind(&HotStuffApp::client_request_cmd_handler, this, _1, _2));
     cn.reg_handler(hotstuff::CHK_CMD, std::bind(&HotStuffApp::client_check_cmd_handler, this, _1, _2));

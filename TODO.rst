@@ -1,1 +1,1 @@
-- leave parent selection to PaceMaker
+- Implement a basic long-standing leader PaceMaker

@@ -157,12 +157,11 @@ class HotStuffBase: public HotStuffCore {
 
     public:
     HotStuffBase(uint32_t blk_size,
-            int32_t parent_limit,
             ReplicaID rid,
             privkey_bt &&priv_key,
             NetAddr listen_addr,
-            EventContext eb,
-            pacemaker_bt pmaker);
+            pacemaker_bt pmaker,
+            EventContext eb);
 
     ~HotStuffBase();
 
@@ -220,19 +219,17 @@ class HotStuff: public HotStuffBase {
 
     public:
     HotStuff(uint32_t blk_size,
-            int32_t parent_limit,
             ReplicaID rid,
             const bytearray_t &raw_privkey,
             NetAddr listen_addr,
-            EventContext eb = EventContext(),
-            pacemaker_bt pmaker = new PaceMakerDummy()):
+            pacemaker_bt pmaker,
+            EventContext eb = EventContext()):
         HotStuffBase(blk_size,
-                    parent_limit,
                     rid,
                     new PrivKeyType(raw_privkey),
                     listen_addr,
-                    eb,
-                    std::move(pmaker)) {}
+                    std::move(pmaker),
+                    eb) {}
 
     void add_replica(ReplicaID idx, const NetAddr &addr, const bytearray_t &pubkey_raw) {
         DataStream s(pubkey_raw);

@@ -84,7 +84,7 @@ ReplicaID HotStuffBase::add_command(command_t cmd) {
             cmd_pending.pop();
         }
         pmaker->beat().then([this, cmds = std::move(cmds)]() {
-            on_propose(cmds);
+            on_propose(cmds, pmaker->get_parents());
         });
     }
     return proposer;
@@ -383,13 +383,12 @@ promise_t HotStuffBase::async_decide(const uint256_t &cmd_hash) {
 }
 
 HotStuffBase::HotStuffBase(uint32_t blk_size,
-                    int32_t parent_limit,
                     ReplicaID rid,
                     privkey_bt &&priv_key,
                     NetAddr listen_addr,
-                    EventContext eb,
-                    pacemaker_bt pmaker):
-        HotStuffCore(rid, std::move(priv_key), parent_limit),
+                    pacemaker_bt pmaker,
+                    EventContext eb):
+        HotStuffCore(rid, std::move(priv_key)),
         listen_addr(listen_addr),
         blk_size(blk_size),
         eb(eb),

@@ -17,6 +17,7 @@ class PaceMaker {
      * propose the command. */
     virtual promise_t beat() = 0;
     virtual ReplicaID get_proposer() = 0;
+    virtual std::vector<block_t> get_parents() = 0;
     /** Get a promise resolved when the pace maker thinks it is a *good* time
      * to vote for a block. The promise is resolved with the next proposer's ID
      * */
@@ -25,8 +26,31 @@ class PaceMaker {
 
 using pacemaker_bt = BoxObj<PaceMaker>;
 
-/** A pace maker that waits for the qc of the last proposed block. */
-class PaceMakerDummy: public PaceMaker {
+class PMAllParents: public virtual PaceMaker {
+    const int32_t parent_limit;         /**< maximum number of parents */
+    public:
+    PMAllParents(int32_t parent_limit): parent_limit(parent_limit) {}
+    std::vector<block_t> get_parents() override {
+        auto tails = hsc->get_tails();
+        size_t nparents = tails.size();
+        if (parent_limit > 0)
+            nparents = std::min(nparents, (size_t)parent_limit);
+        assert(nparents > 0);
+        block_t p = *tails.rbegin();
+        std::vector<block_t> parents{p};
+        nparents--;
+        /* add the rest of tails as "uncles/aunts" */
+        while (nparents--)
+        {
+            auto it = tails.begin();
+            parents.push_back(*it);
+            tails.erase(it);
+        }
+        return std::move(parents);
+    }
+};
+
+class PMWaitQC: public virtual PaceMaker {
     std::queue<promise_t> pending_beats;
     block_t last_proposed;
     bool locked;
@@ -53,8 +77,6 @@ class PaceMakerDummy: public PaceMaker {
     }
 
     public:
-    PaceMakerDummy() = default;
-
     void init(HotStuffCore *hsc) override {
         PaceMaker::init(hsc);
         last_proposed = hsc->get_genesis();
@@ -80,15 +102,24 @@ class PaceMakerDummy: public PaceMaker {
     }
 };
 
+/** A pace maker that waits for the qc of the last proposed block. */
+struct PaceMakerDummy: public PMAllParents, public PMWaitQC {
+    PaceMakerDummy(int32_t parent_limit):
+        PMAllParents(parent_limit), PMWaitQC() {}
+};
+
 class PaceMakerDummyFixed: public PaceMakerDummy {
     ReplicaID proposer;
 
     public:
+    PaceMakerDummyFixed(ReplicaID proposer,
+                        int32_t parent_limit):
+        PaceMakerDummy(parent_limit),
+        proposer(proposer) {}
+
     ReplicaID get_proposer() override {
         return proposer;
     }
-
-    PaceMakerDummyFixed(ReplicaID proposer): proposer(proposer) {}
 
     promise_t next_proposer(ReplicaID) override {
         return promise_t([this](promise_t &pm) {

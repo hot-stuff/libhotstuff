@@ -10,11 +10,10 @@
 
 namespace hotstuff {
 
-/* The core logic of HotStuff, is farily simple :) */
+/* The core logic of HotStuff, is fairly simple :). */
 /*** begin HotStuff protocol logic ***/
 HotStuffCore::HotStuffCore(ReplicaID id,
-                            privkey_bt &&priv_key,
-                            int32_t parent_limit):
+                            privkey_bt &&priv_key):
         b0(new Block(true, 1)),
         bqc(b0),
         bexec(b0),
@@ -22,7 +21,6 @@ HotStuffCore::HotStuffCore(ReplicaID id,
         priv_key(std::move(priv_key)),
         tails{bqc},
         id(id),
-        parent_limit(parent_limit),
         storage(new EntityStorage()) {
     storage->add_blk(b0);
     b0->qc_ref = b0;
@@ -110,20 +108,12 @@ bool HotStuffCore::update(const uint256_t &bqc_hash) {
     return true;
 }
 
-void HotStuffCore::on_propose(const std::vector<command_t> &cmds) {
-    size_t nparents = parent_limit < 1 ? tails.size() : parent_limit;
-    assert(tails.size() > 0);
-    block_t p = *tails.rbegin();
-    std::vector<block_t> parents{p};
-    tails.erase(p);
-    nparents--;
-    /* add the rest of tails as "uncles/aunts" */
-    while (nparents--)
-    {
-        auto it = tails.begin();
-        parents.push_back(*it);
-        tails.erase(it);
-    }
+void HotStuffCore::on_propose(const std::vector<command_t> &cmds,
+                            const std::vector<block_t> &parents) {
+    if (parents.empty())
+        throw std::runtime_error("empty parents");
+    for (const auto &_: parents) tails.erase(_);
+    block_t p = parents[0];
     quorum_cert_bt qc = nullptr;
     block_t qc_ref = nullptr;
     if (p != b0 && p->voted.size() >= config.nmajority)
@@ -211,7 +201,13 @@ void HotStuffCore::on_receive_vote(const Vote &vote) {
     size_t qsize = blk->voted.size();
     if (qsize <= config.nmajority)
     {
-        blk->self_qc->add_part(vote.voter, *vote.cert);
+        auto &qc = blk->self_qc;
+        if (qc == nullptr)
+        {
+            LOG_WARN("vote for block not proposed by itself");
+            qc = create_quorum_cert(blk->get_hash());
+        }
+        qc->add_part(vote.voter, *vote.cert);
         if (qsize == config.nmajority)
             on_qc_finish(blk);
     }
