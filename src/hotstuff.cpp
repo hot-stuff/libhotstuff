@@ -1,4 +1,5 @@
 #include "hotstuff/hotstuff.h"
+#include "hotstuff/client.h"
 
 using salticidae::static_pointer_cast;
 
@@ -70,10 +71,14 @@ void MsgHotStuff::parse_rfetchblk(std::vector<block_t> &blks, HotStuffCore *hsc)
     }
 }
 
-ReplicaID HotStuffBase::add_command(command_t cmd) {
+promise_t HotStuffBase::exec_command(command_t cmd) {
     ReplicaID proposer = pmaker->get_proposer();
+    /* not the proposer */
     if (proposer != get_id())
-        return proposer;
+        return promise_t([proposer, cmd](promise_t &pm) {
+            pm.resolve(Finality(proposer, -1,
+                                cmd->get_hash(), uint256_t()));
+        });
     cmd_pending.push(storage->add_cmd(cmd));
     if (cmd_pending.size() >= blk_size)
     {
@@ -87,7 +92,13 @@ ReplicaID HotStuffBase::add_command(command_t cmd) {
             on_propose(cmds, pmaker->get_parents());
         });
     }
-    return proposer;
+    return async_decide(cmd->get_hash()).then([this](const command_t &cmd) {
+        block_t blk = cmd->get_container();
+        return Finality(get_id(),
+                        cmd->get_decision(),
+                        cmd->get_hash(),
+                        blk->get_hash());
+    });
 }
 
 void HotStuffBase::add_replica(ReplicaID idx, const NetAddr &addr,

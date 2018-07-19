@@ -168,7 +168,7 @@ class HotStuffBase: public HotStuffCore {
     /* the API for HotStuffBase */
 
     /* Submit the command to be decided. */
-    ReplicaID add_command(command_t cmd);
+    promise_t exec_command(command_t cmd);
     void add_replica(ReplicaID idx, const NetAddr &addr, pubkey_bt &&pub_key);
     void start(bool eb_loop = false);
 

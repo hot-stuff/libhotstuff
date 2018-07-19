@@ -16,16 +16,16 @@ void MsgClient::parse_reqcmd(command_t &cmd, HotStuffCore *hsc) const {
     cmd = hsc->parse_cmd(s);
 }
 
-void MsgClient::gen_respcmd(const uint256_t &cmd_hash, const Finality &fin) {
+void MsgClient::gen_respcmd(const Finality &fin) {
     DataStream s;
     set_opcode(RESP_CMD);
-    s << cmd_hash << fin;
+    s << fin;
     set_payload(std::move(s));
 }
 
-void MsgClient::parse_respcmd(uint256_t &cmd_hash, Finality &fin) const {
+void MsgClient::parse_respcmd(Finality &fin) const {
     DataStream s(get_payload());
-    s >> cmd_hash >> fin;
+    s >> fin;
 }
 
 void MsgClient::gen_chkcmd(const uint256_t &cmd_hash) {

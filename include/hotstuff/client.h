@@ -17,20 +17,23 @@ enum {
 struct Finality: public Serializable {
     ReplicaID rid;
     int8_t decision;
+    uint256_t cmd_hash;
     uint256_t blk_hash;
     
     public:
     Finality() = default;
-    Finality(ReplicaID rid, int8_t decision, uint256_t blk_hash):
-        rid(rid), decision(decision), blk_hash(blk_hash) {}
+    Finality(ReplicaID rid, int8_t decision,
+            uint256_t cmd_hash, uint256_t blk_hash):
+        rid(rid), decision(decision),
+        cmd_hash(cmd_hash), blk_hash(blk_hash) {}
 
     void serialize(DataStream &s) const override {
-        s << rid << decision;
+        s << rid << decision << cmd_hash;
         if (decision == 1) s << blk_hash;
     }
 
     void unserialize(DataStream &s) override {
-        s >> rid >> decision;
+        s >> rid >> decision >> cmd_hash;
         if (decision == 1) s >> blk_hash;
     }
 };
@@ -40,8 +43,8 @@ struct MsgClient: public salticidae::MsgBase<> {
     void gen_reqcmd(const Command &cmd);
     void parse_reqcmd(command_t &cmd, HotStuffCore *hsc) const;
 
-    void gen_respcmd(const uint256_t &cmd_hash, const Finality &fin);
-    void parse_respcmd(uint256_t &cmd_hash, Finality &fin) const;
+    void gen_respcmd(const Finality &fin);
+    void parse_respcmd(Finality &fin) const;
 
     void gen_chkcmd(const uint256_t &cmd_hash);
     void parse_chkcmd(uint256_t &cmd_hash) const;

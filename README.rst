@@ -1,5 +1,5 @@
 HotStuff
-========
+--------
 
 HotStuff is a general-purpose BFT state machine replication library with
 modularity and simplicity, suitable for building hybrid consensus

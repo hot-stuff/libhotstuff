@@ -68,12 +68,12 @@ void try_send() {
 }
 
 void on_receive(const MsgClient &msg, MsgNetwork<MsgClient>::conn_t) {
-    uint256_t cmd_hash;
     Finality fin;
     HOTSTUFF_LOG_DEBUG("got %s", std::string(msg).c_str());
     if (!msg.verify_checksum())
         HOTSTUFF_LOG_ERROR("incorrect checksum %08x", msg.get_checksum());
-    msg.parse_respcmd(cmd_hash, fin);
+    msg.parse_respcmd(fin);
+    const uint256_t &cmd_hash = fin.cmd_hash;
     auto it = waiting.find(cmd_hash);
     if (fin.rid != proposer)
     {
