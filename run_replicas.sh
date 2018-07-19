@@ -5,7 +5,7 @@ if [[ $# -gt 0 ]]; then
 fi
 for i in "${rep[@]}"; do
     echo "starting replica $i"
-    #valgrind ./hotstuff-app --conf hotstuff-sec${i}.conf > log${i} 2>&1 &
-    ./hotstuff-app --conf hotstuff-sec${i}.conf > log${i} 2>&1 &
+    valgrind --leak-check=full ./hotstuff-app --conf hotstuff-sec${i}.conf > log${i} 2>&1 &
+    #./hotstuff-app --conf hotstuff-sec${i}.conf > log${i} 2>&1 &
 done
 wait

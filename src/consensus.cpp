@@ -287,7 +287,7 @@ HotStuffCore::operator std::string () const {
       << "bexec=" << get_hex10(bqc->get_hash()) << " "
       << "vheight=" << std::to_string(vheight) << " "
       << "tails=" << std::to_string(tails.size()) << ">";
-    return std::string(std::move(s));
+    return std::move(s);
 }
 
 }

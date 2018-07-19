@@ -45,7 +45,9 @@ class HotStuffCore {
     BoxObj<EntityStorage> storage;
 
     HotStuffCore(ReplicaID id, privkey_bt &&priv_key);
-    virtual ~HotStuffCore() = default;
+    virtual ~HotStuffCore() {
+        b0->qc_ref = nullptr;
+    }
 
     /* Inputs of the state machine triggered by external events, should called
      * by the class user, with proper invariants. */
@@ -173,7 +175,7 @@ struct Proposal: public Serializable {
           << "rid=" << std::to_string(proposer) << " "
           << "bqc=" << get_hex10(bqc_hash) << " "
           << "blk=" << get_hex10(blk->get_hash()) << ">";
-        return std::string(std::move(s));
+        return std::move(s);
     }
 };
 
@@ -243,7 +245,7 @@ struct Vote: public Serializable {
           << "bqc=" << get_hex10(bqc_hash) << " "
           << "blk=" << get_hex10(blk_hash) << " "
           << "cert=" << (cert ? "yes" : "no") << ">";
-        return std::string(std::move(s));
+        return std::move(s);
     }
 };
 

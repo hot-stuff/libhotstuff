@@ -184,7 +184,7 @@ class Block {
           << "id="  << get_hex10(hash) << " "
           << "height=" << std::to_string(height) << " "
           << "parent=" << get_hex10(parent_hashes[0]) << ">";
-        return std::string(std::move(s));
+        return std::move(s);
     }
 };
 

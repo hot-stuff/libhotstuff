@@ -39,7 +39,7 @@ struct Request {
 
 std::unordered_map<int, salticidae::RingBuffer> buffers;
 std::unordered_map<const uint256_t, Request> waiting;
-MsgNetwork<MsgClient> mn(eb, 10, 0, 2, 4096);
+MsgNetwork<MsgClient> mn(eb, 10, 10, 4096);
 
 std::unordered_map<ReplicaID, MsgNetwork<MsgClient>::conn_t> conns;
 std::vector<NetAddr> replicas;
@@ -48,7 +48,7 @@ void set_proposer(ReplicaID rid) {
     proposer = rid;
     auto it = conns.find(rid);
     if (it == conns.end())
-        conns.insert(std::make_pair(rid, mn.create_conn(replicas[rid])));
+        conns.insert(std::make_pair(rid, mn.connect(replicas[rid])));
 }
 
 void try_send() {

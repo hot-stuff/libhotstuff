@@ -334,6 +334,7 @@ void HotStuffBase::print_stat() const {
     part_delivery_time = 0;
     part_delivery_time_min = double_inf;
     part_delivery_time_max = 0;
+#ifdef HOTSTUFF_MSG_STAT
     LOG_INFO("-- sent opcode (10s) --");
     auto &sent_op = pn.get_sent_by_opcode();
     for (auto &op: sent_op)
@@ -376,6 +377,7 @@ void HotStuffBase::print_stat() const {
     LOG_INFO("sent: %lu", nsent);
     LOG_INFO("recv: %lu", nrecv);
     LOG_INFO("====== end stats ======");
+#endif
 }
 
 promise_t HotStuffBase::async_decide(const uint256_t &cmd_hash) {
