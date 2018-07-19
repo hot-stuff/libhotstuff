@@ -53,40 +53,29 @@ using HotStuff = hotstuff::HotStuffSecp256k1;
 
 class HotStuffApp: public HotStuff {
     double stat_period;
-    /** libevent handle */
     EventContext eb;
-    /** network messaging between a replica and its client */
+    /** Network messaging between a replica and its client. */
     ClientNetwork<MsgClient> cn;
-    /** timer object to schedule a periodic printing of system statistics */
+    /** Timer object to schedule a periodic printing of system statistics */
     Event ev_stat_timer;
-    /** the binding address for client RPC */
+    /** The listen address for client RPC */
     NetAddr clisten_addr;
+    /** Maximum number of parents. */
     int32_t parent_limit;
 
     using conn_client_t = MsgNetwork<MsgClient>::conn_t;
 
-    /** Client  */
-    /** submits a new command */
-    inline void client_request_cmd_handler(const MsgClient &, conn_client_t);
-    /** checks if a cmd is decided */
-    inline void client_check_cmd_handler(const MsgClient &, conn_client_t);
-
-    Finality get_finality(const uint256_t cmd_hash) const {
-        command_t cmd = storage->find_cmd(cmd_hash);
-        hotstuff::block_t blk = cmd ? cmd->get_container() : nullptr;
-        return Finality(get_id(),
-                        cmd ? cmd->get_decision() : 0,
-                        cmd_hash,
-                        blk ? blk->get_hash() : uint256_t());
-    }
-
-    /** The callback function to print stat */
-    inline void print_stat_cb(evutil_socket_t, short);
+    void client_request_cmd_handler(const MsgClient &, conn_client_t);
+    void print_stat_cb(evutil_socket_t, short);
 
     command_t parse_cmd(DataStream &s) override {
         auto cmd = new CommandDummy();
         s >> *cmd;
         return cmd;
+    }
+
+    void state_machine_execute(const Finality &fin) override {
+        LOG_INFO("replicated %s", std::string(fin).c_str());
     }
 
     public:
@@ -101,7 +90,6 @@ class HotStuffApp: public HotStuff {
 
     void start();
 };
-
 
 std::pair<std::string, std::string> split_ip_port_cport(const std::string &s) {
     auto ret = trim_all(split(s, ";"));
@@ -222,7 +210,6 @@ HotStuffApp::HotStuffApp(uint32_t blk_size,
     parent_limit(parent_limit) {
     /* register the handlers for msg from clients */
     cn.reg_handler(hotstuff::REQ_CMD, std::bind(&HotStuffApp::client_request_cmd_handler, this, _1, _2));
-    cn.reg_handler(hotstuff::CHK_CMD, std::bind(&HotStuffApp::client_check_cmd_handler, this, _1, _2));
     cn.listen(clisten_addr);
 }
 
@@ -242,28 +229,18 @@ void HotStuffApp::client_request_cmd_handler(const MsgClient &msg, conn_client_t
     {
         LOG_WARN("invalid client cmd");
         MsgClient resp;
-        resp.gen_respcmd(Finality(get_id(), -1, cmd_hash, uint256_t()));
+        resp.gen_respcmd(Finality(get_id(), -1, 0, 0, cmd_hash, uint256_t()));
         cn.send_msg(resp, addr);
     }
     else
     {
-        LOG_DEBUG("processing client cmd %.10s", get_hex(cmd_hash).c_str());
+        LOG_DEBUG("processing %s", std::string(*cmd).c_str());
         exec_command(cmd).then([this, addr](Finality fin) {
             MsgClient resp;
             resp.gen_respcmd(fin);
             cn.send_msg(resp, addr);
         });
     }
-}
-
-void HotStuffApp::client_check_cmd_handler(const MsgClient &msg, conn_client_t conn_) {
-    auto conn = static_pointer_cast<ClientNetwork<MsgClient>::Conn>(conn_);
-    const NetAddr addr = conn->get_addr();
-    uint256_t cmd_hash;
-    msg.parse_chkcmd(cmd_hash);
-    MsgClient resp;
-    resp.gen_respcmd(get_finality(cmd_hash));
-    cn.send_msg(resp, addr);
 }
 
 void HotStuffApp::start() {

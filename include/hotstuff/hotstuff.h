@@ -152,8 +152,13 @@ class HotStuffBase: public HotStuffCore {
 
     void do_broadcast_proposal(const Proposal &) override;
     void do_vote(ReplicaID, const Vote &) override;
-    void do_decide(const command_t &) override;
-    void do_forward(const uint256_t &cmd_hash, ReplicaID rid);
+    void do_decide(Finality &&) override;
+
+    protected:
+
+    /** Called to replicate the execution of a command, the application should
+     * implement this to make transition for the application state. */
+    virtual void state_machine_execute(const Finality &) = 0;
 
     public:
     HotStuffBase(uint32_t blk_size,
@@ -182,8 +187,6 @@ class HotStuffBase: public HotStuffCore {
     promise_t async_fetch_blk(const uint256_t &blk_hash, const NetAddr *replica_id, bool fetch_now = true);
     /** Returns a promise resolved (with block_t blk) when Block is delivered (i.e. prefix is fetched). */
     promise_t async_deliver_blk(const uint256_t &blk_hash,  const NetAddr &replica_id);
-    /** Returns a promise resolved (with command_t cmd) when Command is decided. */
-    promise_t async_decide(const uint256_t &cmd_hash);
 };
 
 /** HotStuff protocol (templated by cryptographic implementation). */

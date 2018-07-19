@@ -14,6 +14,7 @@ namespace hotstuff {
 
 struct Proposal;
 struct Vote;
+struct Finality;
 
 /** Abstraction for HotStuff protocol state machine (without network implementation). */
 class HotStuffCore {
@@ -86,7 +87,7 @@ class HotStuffCore {
      * the events. */
     protected:
     /** Called by HotStuffCore upon the decision being made for cmd. */
-    virtual void do_decide(const command_t &cmd) = 0;
+    virtual void do_decide(Finality &&fin) = 0;
     /** Called by HotStuffCore upon broadcasting a new proposal.
      * The user should send the proposal message to all replicas except for
      * itself. */
@@ -127,7 +128,6 @@ class HotStuffCore {
     /* Other useful functions */
     block_t get_genesis() { return b0; }
     const ReplicaConfig &get_config() { return config; }
-    int8_t get_cmd_decision(const uint256_t &cmd_hash);
     ReplicaID get_id() const { return id; }
     const std::set<block_t, BlockHeightCmp> get_tails() const { return tails; }
     operator std::string () const;
@@ -245,6 +245,52 @@ struct Vote: public Serializable {
           << "bqc=" << get_hex10(bqc_hash) << " "
           << "blk=" << get_hex10(blk_hash) << " "
           << "cert=" << (cert ? "yes" : "no") << ">";
+        return std::move(s);
+    }
+};
+
+struct Finality: public Serializable {
+    ReplicaID rid;
+    int8_t decision;
+    uint32_t cmd_idx;
+    uint32_t cmd_height;
+    uint256_t cmd_hash;
+    uint256_t blk_hash;
+    
+    public:
+    Finality() = default;
+    Finality(ReplicaID rid,
+            int8_t decision,
+            uint32_t cmd_idx,
+            uint32_t cmd_height,
+            uint256_t cmd_hash,
+            uint256_t blk_hash):
+        rid(rid), decision(decision),
+        cmd_idx(cmd_idx), cmd_height(cmd_height),
+        cmd_hash(cmd_hash), blk_hash(blk_hash) {}
+
+    void serialize(DataStream &s) const override {
+        s << rid << decision
+          << cmd_idx << cmd_height
+          << cmd_hash;
+        if (decision == 1) s << blk_hash;
+    }
+
+    void unserialize(DataStream &s) override {
+        s >> rid >> decision
+          >> cmd_idx >> cmd_height
+          >> cmd_hash;
+        if (decision == 1) s >> blk_hash;
+    }
+
+    operator std::string () const {
+        DataStream s;
+        s << "<fin "
+          << "decision=" << std::to_string(decision) << " "
+          << "cmd_idx=" << std::to_string(cmd_idx) << " "
+          << "cmd_height=" << std::to_string(cmd_height) << " "
+          << "cmd=" << get_hex10(cmd_hash) << " "
+          << "blk=" << get_hex10(blk_hash) << ">";
         return std::move(s);
     }
 };

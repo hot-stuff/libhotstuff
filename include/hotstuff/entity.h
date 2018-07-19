@@ -80,9 +80,10 @@ class Command: public Serializable {
     virtual ~Command() = default;
     virtual const uint256_t &get_hash() const = 0;
     virtual bool verify() const = 0;
-    inline int8_t get_decision() const;
-    block_t get_container() const {
-        return container;
+    virtual operator std::string () const {
+        DataStream s;
+        s << "<cmd id=" << get_hex10(get_hash()) << ">";
+        return std::move(s);
     }
 };
 
@@ -193,11 +194,6 @@ struct BlockHeightCmp {
         return a->get_height() < b->get_height();
     }
 };
-
-int8_t Command::get_decision() const {
-    block_t cptr = container;
-    return cptr ? cptr->get_decision() : 0;
-}
 
 class EntityStorage {
     std::unordered_map<const uint256_t, block_t> blk_cache;

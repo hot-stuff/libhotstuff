@@ -91,7 +91,10 @@ void HotStuffCore::check_commit(const block_t &_blk) {
 #ifdef HOTSTUFF_ENABLE_LOG_PROTO
         LOG_INFO("commit %s", std::string(*blk).c_str());
 #endif
-        for (auto cmd: blk->cmds) do_decide(cmd);
+        size_t idx = 0;
+        for (auto cmd: blk->cmds)
+            do_decide(Finality(id, 1, idx, blk->height,
+                                cmd->get_hash(), blk->get_hash()));
     }
     bexec = p;
 }
@@ -236,11 +239,6 @@ void HotStuffCore::prune(uint32_t staleness) {
         s.push(blk->parents.back());
         blk->parents.pop_back();
     }
-}
-
-int8_t HotStuffCore::get_cmd_decision(const uint256_t &cmd_hash) {
-    auto cmd = storage->find_cmd(cmd_hash);
-    return cmd != nullptr ? cmd->get_decision() : 0;
 }
 
 void HotStuffCore::add_replica(ReplicaID rid, const NetAddr &addr,

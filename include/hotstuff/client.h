@@ -14,30 +14,6 @@ enum {
     CHK_CMD = 0x6
 };
 
-struct Finality: public Serializable {
-    ReplicaID rid;
-    int8_t decision;
-    uint256_t cmd_hash;
-    uint256_t blk_hash;
-    
-    public:
-    Finality() = default;
-    Finality(ReplicaID rid, int8_t decision,
-            uint256_t cmd_hash, uint256_t blk_hash):
-        rid(rid), decision(decision),
-        cmd_hash(cmd_hash), blk_hash(blk_hash) {}
-
-    void serialize(DataStream &s) const override {
-        s << rid << decision << cmd_hash;
-        if (decision == 1) s << blk_hash;
-    }
-
-    void unserialize(DataStream &s) override {
-        s >> rid >> decision >> cmd_hash;
-        if (decision == 1) s >> blk_hash;
-    }
-};
-
 struct MsgClient: public salticidae::MsgBase<> {
     using MsgBase::MsgBase;
     void gen_reqcmd(const Command &cmd);

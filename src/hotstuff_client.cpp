@@ -91,11 +91,7 @@ void on_receive(const MsgClient &msg, MsgNetwork<MsgClient>::conn_t) {
         it->second.rid = proposer;
         return;
     }
-    HOTSTUFF_LOG_INFO(
-        "got response for %.10s: <decision=%d, blk=%.10s>",
-        get_hex(cmd_hash).c_str(),
-        fin.decision,
-        get_hex(fin.blk_hash).c_str());
+    HOTSTUFF_LOG_INFO("got %s", std::string(fin).c_str());
     if (it == waiting.end()) return;
     waiting.erase(it);
     try_send();

@@ -72,12 +72,13 @@ void MsgHotStuff::parse_rfetchblk(std::vector<block_t> &blks, HotStuffCore *hsc)
 }
 
 promise_t HotStuffBase::exec_command(command_t cmd) {
+    const uint256_t &cmd_hash = cmd->get_hash();
     ReplicaID proposer = pmaker->get_proposer();
     /* not the proposer */
     if (proposer != get_id())
-        return promise_t([proposer, cmd](promise_t &pm) {
-            pm.resolve(Finality(proposer, -1,
-                                cmd->get_hash(), uint256_t()));
+        return promise_t([proposer, cmd_hash](promise_t &pm) {
+            pm.resolve(Finality(proposer, -1, 0, 0,
+                                cmd_hash, uint256_t()));
         });
     cmd_pending.push(storage->add_cmd(cmd));
     if (cmd_pending.size() >= blk_size)
@@ -92,13 +93,13 @@ promise_t HotStuffBase::exec_command(command_t cmd) {
             on_propose(cmds, pmaker->get_parents());
         });
     }
-    return async_decide(cmd->get_hash()).then([this](const command_t &cmd) {
-        block_t blk = cmd->get_container();
-        return Finality(get_id(),
-                        cmd->get_decision(),
-                        cmd->get_hash(),
-                        blk->get_hash());
-    });
+    auto it = decision_waiting.find(cmd_hash);
+    if (it == decision_waiting.end())
+    {
+        promise_t pm{[](promise_t){}};
+        it = decision_waiting.insert(std::make_pair(cmd_hash, pm)).first;
+    }
+    return it->second;
 }
 
 void HotStuffBase::add_replica(ReplicaID idx, const NetAddr &addr,
@@ -380,21 +381,6 @@ void HotStuffBase::print_stat() const {
 #endif
 }
 
-promise_t HotStuffBase::async_decide(const uint256_t &cmd_hash) {
-    if (get_cmd_decision(cmd_hash))
-        return promise_t([this, cmd_hash](promise_t pm){
-            pm.resolve(storage->find_cmd(cmd_hash));
-        });
-    /* otherwise the do_decide will resolve the promise */
-    auto it = decision_waiting.find(cmd_hash);
-    if (it == decision_waiting.end())
-    {
-        promise_t pm{[](promise_t){}};
-        it = decision_waiting.insert(std::make_pair(cmd_hash, pm)).first;
-    }
-    return it->second;
-}
-
 HotStuffBase::HotStuffBase(uint32_t blk_size,
                     ReplicaID rid,
                     privkey_bt &&priv_key,
@@ -448,20 +434,12 @@ void HotStuffBase::do_vote(ReplicaID last_proposer, const Vote &vote) {
     });
 }
 
-void HotStuffBase::do_decide(const command_t &cmd) {
-    auto it = decision_waiting.find(cmd->get_hash());
+void HotStuffBase::do_decide(Finality &&fin) {
+    state_machine_execute(fin);
+    auto it = decision_waiting.find(fin.cmd_hash);
     if (it != decision_waiting.end())
     {
-        it->second.resolve(cmd);
-        decision_waiting.erase(it);
-    }
-}
-
-void HotStuffBase::do_forward(const uint256_t &cmd_hash, ReplicaID rid) {
-    auto it = decision_waiting.find(cmd_hash);
-    if (it != decision_waiting.end())
-    {
-        it->second.reject(rid);
+        it->second.resolve(std::move(fin));
         decision_waiting.erase(it);
     }
 }
