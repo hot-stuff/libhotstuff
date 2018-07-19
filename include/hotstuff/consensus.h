@@ -31,7 +31,7 @@ class HotStuffCore {
     std::unordered_map<block_t, promise_t> qc_waiting;
     promise_t propose_waiting;
 
-    block_t sanity_check_delivered(const uint256_t &blk_hash);
+    block_t get_delivered_blk(const uint256_t &blk_hash);
     void sanity_check_delivered(const block_t &blk);
     void check_commit(const block_t &_bqc);
     bool update(const uint256_t &bqc_hash);

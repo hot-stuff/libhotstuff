@@ -221,7 +221,7 @@ HotStuffApp::HotStuffApp(uint32_t blk_size,
     /* register the handlers for msg from clients */
     cn.reg_handler(hotstuff::REQ_CMD, std::bind(&HotStuffApp::client_request_cmd_handler, this, _1, _2));
     cn.reg_handler(hotstuff::CHK_CMD, std::bind(&HotStuffApp::client_check_cmd_handler, this, _1, _2));
-    cn.init(clisten_addr);
+    cn.listen(clisten_addr);
 }
 
 void HotStuffApp::client_request_cmd_handler(const MsgClient &msg, conn_client_t conn_) {

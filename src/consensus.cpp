@@ -31,7 +31,7 @@ void HotStuffCore::sanity_check_delivered(const block_t &blk) {
         throw std::runtime_error("block not delivered");
 }
 
-block_t HotStuffCore::sanity_check_delivered(const uint256_t &blk_hash) {
+block_t HotStuffCore::get_delivered_blk(const uint256_t &blk_hash) {
     block_t blk = storage->find_blk(blk_hash);
     if (blk == nullptr || !blk->delivered)
         throw std::runtime_error("block not delivered");
@@ -46,10 +46,7 @@ bool HotStuffCore::on_deliver_blk(const block_t &blk) {
     }
     blk->parents.clear();
     for (const auto &hash: blk->parent_hashes)
-    {
-        block_t p = sanity_check_delivered(hash);
-        blk->parents.push_back(p);
-    }
+        blk->parents.push_back(get_delivered_blk(hash));
     blk->height = blk->parents[0]->height + 1;
     for (const auto &cmd: blk->cmds)
         cmd->container = blk;
@@ -66,41 +63,41 @@ bool HotStuffCore::on_deliver_blk(const block_t &blk) {
     tails.insert(blk);
 
     blk->delivered = true;
-    LOG_DEBUG("delivered %.10s", get_hex(blk->get_hash()).c_str());
+    LOG_DEBUG("deliver %s", std::string(*blk).c_str());
     return true;
 }
 
 void HotStuffCore::check_commit(const block_t &_blk) {
     const block_t &blk = _blk->qc_ref;
     if (blk->qc_ref == nullptr) return;
+    /* decided blk could possible be incomplete due to pruning */
     if (blk->decision) return;
     block_t p = blk->parents[0];
-    if (p == blk->qc_ref)
-    { /* commit */
-        std::vector<block_t> commit_queue;
-        block_t b;
-        for (b = p; b->height > bexec->height; b = b->parents[0])
-        { /* todo: also commit the uncles/aunts */
-            commit_queue.push_back(b);
-        }
-        if (b != bexec)
-            throw std::runtime_error("safety breached :(");
-        for (auto it = commit_queue.rbegin(); it != commit_queue.rend(); it++)
-        {
-            const block_t &blk = *it;
-            blk->decision = 1;
-#ifdef HOTSTUFF_ENABLE_LOG_PROTO
-            LOG_INFO("commit blk %.10s", get_hex10(blk->get_hash()).c_str());
-#endif
-            for (auto cmd: blk->cmds)
-                do_decide(cmd);
-        }
-        bexec = p;
+    /* commit requires direct parent */
+    if (p != blk->qc_ref) return;
+    /* otherwise commit */
+    std::vector<block_t> commit_queue;
+    block_t b;
+    for (b = p; b->height > bexec->height; b = b->parents[0])
+    { /* TODO: also commit the uncles/aunts */
+        commit_queue.push_back(b);
     }
+    if (b != bexec)
+        throw std::runtime_error("safety breached :(");
+    for (auto it = commit_queue.rbegin(); it != commit_queue.rend(); it++)
+    {
+        const block_t &blk = *it;
+        blk->decision = 1;
+#ifdef HOTSTUFF_ENABLE_LOG_PROTO
+        LOG_INFO("commit %s", std::string(*blk).c_str());
+#endif
+        for (auto cmd: blk->cmds) do_decide(cmd);
+    }
+    bexec = p;
 }
 
 bool HotStuffCore::update(const uint256_t &bqc_hash) {
-    block_t _bqc = sanity_check_delivered(bqc_hash);
+    block_t _bqc = get_delivered_blk(bqc_hash);
     if (_bqc->qc_ref == nullptr) return false;
     check_commit(_bqc);
     if (_bqc->qc_ref->height > bqc->qc_ref->height)
@@ -116,13 +113,14 @@ void HotStuffCore::on_propose(const std::vector<command_t> &cmds,
     block_t p = parents[0];
     quorum_cert_bt qc = nullptr;
     block_t qc_ref = nullptr;
+    /* a block can optionally carray a QC */
     if (p != b0 && p->voted.size() >= config.nmajority)
     {
         qc = p->self_qc->clone();
         qc->compute();
         qc_ref = p;
     }
-    /* create a new block */
+    /* create the new block */
     block_t bnew = storage->add_blk(
         Block(
             parents,
@@ -163,8 +161,11 @@ void HotStuffCore::on_receive_proposal(const Proposal &prop) {
         for (b = bnew;
             b->height > pref->height;
             b = b->parents[0]);
-        opinion = b == pref;
-        vheight = bnew->height;
+        if (b == pref) /* on the same branch */
+        {
+            opinion = true;
+            vheight = bnew->height;
+        }
     }
 #ifdef HOTSTUFF_ENABLE_LOG_PROTO
     LOG_INFO("now state: %s", std::string(*this).c_str());
@@ -185,17 +186,17 @@ void HotStuffCore::on_receive_vote(const Vote &vote) {
     LOG_INFO("got %s", std::string(vote).c_str());
     LOG_INFO("now state: %s", std::string(*this).c_str());
 #endif
-
-    block_t blk = sanity_check_delivered(vote.blk_hash);
+    block_t blk = get_delivered_blk(vote.blk_hash);
     if (vote.cert == nullptr) return;
+    /* otherwise the vote is positive */
     if (!vote.verify())
     {
-        LOG_WARN("invalid vote");
+        LOG_WARN("invalid vote from %d", vote.voter);
         return;
     }
     if (!blk->voted.insert(vote.voter).second)
     {
-        LOG_WARN("duplicate votes");
+        LOG_WARN("duplicate vote from %d", vote.voter);
         return;
     }
     size_t qsize = blk->voted.size();

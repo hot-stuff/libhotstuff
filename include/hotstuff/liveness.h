@@ -11,12 +11,18 @@ class PaceMaker {
     HotStuffCore *hsc;
     public:
     virtual ~PaceMaker() = default;
+    /** Initialize the PaceMaker. A derived class should also call the
+     * default implementation to set `hsc`. */
     virtual void init(HotStuffCore *_hsc) { hsc = _hsc; }
     /** Get a promise resolved when the pace maker thinks it is a *good* time
      * to issue new commands. When promise is resolved, the replica should
      * propose the command. */
     virtual promise_t beat() = 0;
+    /** Get the current proposer. */
     virtual ReplicaID get_proposer() = 0;
+    /** Select the parent blocks for a new block.
+     * @return Parent blocks. The block at index 0 is the direct parent, while
+     * the others are uncles/aunts. The returned vector should be non-empty. */
     virtual std::vector<block_t> get_parents() = 0;
     /** Get a promise resolved when the pace maker thinks it is a *good* time
      * to vote for a block. The promise is resolved with the next proposer's ID
@@ -26,6 +32,10 @@ class PaceMaker {
 
 using pacemaker_bt = BoxObj<PaceMaker>;
 
+/** Parent selection implementation for PaceMaker: select all parents.
+ * PaceMakers derived from this class will select the highest block as the
+ * direct parent, while including other tail blocks (up to parent_limit) as
+ * uncles/aunts. */
 class PMAllParents: public virtual PaceMaker {
     const int32_t parent_limit;         /**< maximum number of parents */
     public:
@@ -50,6 +60,9 @@ class PMAllParents: public virtual PaceMaker {
     }
 };
 
+/** Beat implementation for PaceMaker: simply wait for the QC of last proposed
+ * block.  PaceMakers derived from this class will beat only when the last
+ * block proposed by itself gets its QC. */
 class PMWaitQC: public virtual PaceMaker {
     std::queue<promise_t> pending_beats;
     block_t last_proposed;
@@ -102,12 +115,13 @@ class PMWaitQC: public virtual PaceMaker {
     }
 };
 
-/** A pace maker that waits for the qc of the last proposed block. */
+/** Naive PaceMaker where everyone can be a proposer at any moment. */
 struct PaceMakerDummy: public PMAllParents, public PMWaitQC {
     PaceMakerDummy(int32_t parent_limit):
         PMAllParents(parent_limit), PMWaitQC() {}
 };
 
+/** PaceMakerDummy with a fixed proposer. */
 class PaceMakerDummyFixed: public PaceMakerDummy {
     ReplicaID proposer;
 

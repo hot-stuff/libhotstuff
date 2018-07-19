@@ -411,7 +411,7 @@ HotStuffBase::HotStuffBase(uint32_t blk_size,
     pn.reg_handler(VOTE, std::bind(&HotStuffBase::vote_handler, this, _1, _2));
     pn.reg_handler(QUERY_FETCH_BLK, std::bind(&HotStuffBase::query_fetch_blk_handler, this, _1, _2));
     pn.reg_handler(RESP_FETCH_BLK, std::bind(&HotStuffBase::resp_fetch_blk_handler, this, _1, _2));
-    pn.init(listen_addr);
+    pn.listen(listen_addr);
 }
 
 void HotStuffBase::do_broadcast_proposal(const Proposal &prop) {
