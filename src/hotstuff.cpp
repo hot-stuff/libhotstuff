@@ -52,7 +52,7 @@ void MsgHotStuff::gen_rfetchblk(const std::vector<block_t> &blks) {
 }
 
 void MsgHotStuff::parse_rfetchblk(std::vector<block_t> &blks, HotStuffCore *hsc) const {
-    DataStream s;
+    DataStream s(get_payload());
     uint32_t size;
     s >> size;
     size = letoh(size);

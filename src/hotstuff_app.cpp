@@ -265,6 +265,6 @@ void HotStuffApp::start() {
 
 void HotStuffApp::print_stat_cb(evutil_socket_t, short) {
     HotStuff::print_stat();
-    HotStuffCore::prune(100);
+    //HotStuffCore::prune(100);
     ev_stat_timer.add_with_timeout(stat_period);
 }

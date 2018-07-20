@@ -37,12 +37,10 @@ struct Request {
         rid(rid), cmd(cmd) { et.start(); }
 };
 
-std::unordered_map<int, salticidae::RingBuffer> buffers;
-std::unordered_map<const uint256_t, Request> waiting;
-MsgNetwork<MsgClient> mn(eb, 10, 10, 4096);
-
 std::unordered_map<ReplicaID, MsgNetwork<MsgClient>::conn_t> conns;
+std::unordered_map<const uint256_t, Request> waiting;
 std::vector<NetAddr> replicas;
+MsgNetwork<MsgClient> mn(eb, 10, 10, 4096);
 
 void set_proposer(ReplicaID rid) {
     proposer = rid;
