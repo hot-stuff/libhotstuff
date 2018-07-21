@@ -37,10 +37,12 @@ using hotstuff::CommandDummy;
 using hotstuff::Finality;
 using hotstuff::command_t;
 using hotstuff::uint256_t;
+using hotstuff::opcode_t;
 using hotstuff::bytearray_t;
 using hotstuff::DataStream;
 using hotstuff::ReplicaID;
-using hotstuff::MsgClient;
+using hotstuff::MsgReqCmd;
+using hotstuff::MsgRespCmd;
 using hotstuff::get_hash;
 using hotstuff::promise_t;
 
@@ -55,7 +57,7 @@ class HotStuffApp: public HotStuff {
     double stat_period;
     EventContext eb;
     /** Network messaging between a replica and its client. */
-    ClientNetwork<MsgClient> cn;
+    ClientNetwork<opcode_t> cn;
     /** Timer object to schedule a periodic printing of system statistics */
     Event ev_stat_timer;
     /** The listen address for client RPC */
@@ -63,9 +65,9 @@ class HotStuffApp: public HotStuff {
     /** Maximum number of parents. */
     int32_t parent_limit;
 
-    using conn_client_t = MsgNetwork<MsgClient>::conn_t;
+    using conn_t = ClientNetwork<opcode_t>::conn_t;
 
-    void client_request_cmd_handler(const MsgClient &, conn_client_t);
+    void client_request_cmd_handler(MsgReqCmd &&, conn_t);
     void print_stat_cb(evutil_socket_t, short);
 
     command_t parse_cmd(DataStream &s) override {
@@ -209,17 +211,15 @@ HotStuffApp::HotStuffApp(uint32_t blk_size,
     clisten_addr(clisten_addr),
     parent_limit(parent_limit) {
     /* register the handlers for msg from clients */
-    cn.reg_handler(hotstuff::REQ_CMD, std::bind(&HotStuffApp::client_request_cmd_handler, this, _1, _2));
+    cn.reg_handler(salticidae::handler_bind(&HotStuffApp::client_request_cmd_handler, this, _1, _2));
     cn.listen(clisten_addr);
 }
 
-void HotStuffApp::client_request_cmd_handler(const MsgClient &msg, conn_client_t conn_) {
-    auto conn = static_pointer_cast<ClientNetwork<MsgClient>::Conn>(conn_);
+void HotStuffApp::client_request_cmd_handler(MsgReqCmd &&msg, conn_t conn) {
     const NetAddr addr = conn->get_addr();
-    command_t cmd;
+    msg.postponed_parse(this);
+    auto cmd = msg.cmd;
     std::vector<promise_t> pms;
-    msg.parse_reqcmd(cmd, this);
-
     bool flag = true;
 #ifndef HOTSTUFF_DISABLE_TX_VERIFY
     flag &= cmd->verify();
@@ -228,17 +228,14 @@ void HotStuffApp::client_request_cmd_handler(const MsgClient &msg, conn_client_t
     if (!flag)
     {
         LOG_WARN("invalid client cmd");
-        MsgClient resp;
-        resp.gen_respcmd(Finality(get_id(), -1, 0, 0, cmd_hash, uint256_t()));
-        cn.send_msg(resp, addr);
+        cn.send_msg(MsgRespCmd(
+                Finality(get_id(), -1, 0, 0, cmd_hash, uint256_t())), addr);
     }
     else
     {
         LOG_DEBUG("processing %s", std::string(*cmd).c_str());
         exec_command(cmd).then([this, addr](Finality fin) {
-            MsgClient resp;
-            resp.gen_respcmd(fin);
-            cn.send_msg(resp, addr);
+            cn.send_msg(MsgRespCmd(fin), addr);
         });
     }
 }

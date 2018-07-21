@@ -53,6 +53,7 @@ class Cloneable {
 };
 
 using ReplicaID = uint16_t;
+using opcode_t = uint8_t;
 
 }
 

@@ -8,22 +8,21 @@
 
 namespace hotstuff {
 
-enum {
-    REQ_CMD = 0x4,
-    RESP_CMD = 0x5,
-    CHK_CMD = 0x6
+struct MsgReqCmd {
+    static const opcode_t opcode = 0x4;
+    DataStream serialized;
+    command_t cmd;
+    MsgReqCmd(const Command &cmd);
+    MsgReqCmd(DataStream &&s): serialized(std::move(s)) {}
+    void postponed_parse(HotStuffCore *hsc);
 };
 
-struct MsgClient: public salticidae::MsgBase<> {
-    using MsgBase::MsgBase;
-    void gen_reqcmd(const Command &cmd);
-    void parse_reqcmd(command_t &cmd, HotStuffCore *hsc) const;
-
-    void gen_respcmd(const Finality &fin);
-    void parse_respcmd(Finality &fin) const;
-
-    void gen_chkcmd(const uint256_t &cmd_hash);
-    void parse_chkcmd(uint256_t &cmd_hash) const;
+struct MsgRespCmd {
+    static const opcode_t opcode = 0x5;
+    DataStream serialized;
+    Finality fin;
+    MsgRespCmd(const Finality &fin);
+    MsgRespCmd(DataStream &&s);
 };
 
 class CommandDummy: public Command {

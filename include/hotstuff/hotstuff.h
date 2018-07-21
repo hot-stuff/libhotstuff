@@ -31,19 +31,43 @@ enum {
 };
 
 /** Network message format for HotStuff. */
-struct MsgHotStuff: public salticidae::MsgBase<> {
-    using MsgBase::MsgBase;
-    void gen_propose(const Proposal &);
-    void parse_propose(Proposal &) const;
+struct MsgPropose {
+    static const opcode_t opcode = 0x0;
+    DataStream serialized;
+    Proposal proposal;
+    MsgPropose(const Proposal &);
+    /** Only move the data to serialized, do not parse immediately. */
+    MsgPropose(DataStream &&s): serialized(std::move(s)) {}
+    /** Parse the serialized data to blks now, with `hsc->storage`. */
+    void postponed_parse(HotStuffCore *hsc);
+};
 
-    void gen_vote(const Vote &);
-    void parse_vote(Vote &) const;
+struct MsgVote {
+    static const opcode_t opcode = 0x1;
+    DataStream serialized;
+    Vote vote;
+    MsgVote(const Vote &);
+    MsgVote(DataStream &&s): serialized(std::move(s)) {}
+    void postponed_parse(HotStuffCore *hsc);
+};
 
-    void gen_qfetchblk(const std::vector<uint256_t> &blk_hashes);
-    void parse_qfetchblk(std::vector<uint256_t> &blk_hashes) const;
+struct MsgReqBlock {
+    static const opcode_t opcode = 0x2;
+    DataStream serialized;
+    std::vector<uint256_t> blk_hashes;
+    MsgReqBlock() = default;
+    MsgReqBlock(const std::vector<uint256_t> &blk_hashes);
+    MsgReqBlock(DataStream &&s);
+};
 
-    void gen_rfetchblk(const std::vector<block_t> &blks);
-    void parse_rfetchblk(std::vector<block_t> &blks, HotStuffCore *hsc) const;
+
+struct MsgRespBlock {
+    static const opcode_t opcode = 0x3;
+    DataStream serialized;
+    std::vector<block_t> blks;
+    MsgRespBlock(const std::vector<block_t> &blks);
+    MsgRespBlock(DataStream &&s): serialized(std::move(s)) {}
+    void postponed_parse(HotStuffCore *hsc);
 };
 
 using promise::promise_t;
@@ -54,7 +78,7 @@ template<EntityType ent_type>
 class FetchContext: public promise_t {
     Event timeout;
     HotStuffBase *hs;
-    MsgHotStuff fetch_msg;
+    MsgReqBlock fetch_msg;
     const uint256_t ent_hash;
     std::unordered_set<NetAddr> replica_ids;
     inline void timeout_cb(evutil_socket_t, short);
@@ -92,7 +116,7 @@ class BlockDeliveryContext: public promise_t {
 class HotStuffBase: public HotStuffCore {
     using BlockFetchContext = FetchContext<ENT_TYPE_BLK>;
     using CmdFetchContext = FetchContext<ENT_TYPE_CMD>;
-    using conn_t = MsgNetwork<MsgHotStuff>::conn_t;
+    using conn_t = PeerNetwork<opcode_t>::conn_t;
 
     friend BlockFetchContext;
     friend CmdFetchContext;
@@ -110,7 +134,7 @@ class HotStuffBase: public HotStuffCore {
     /** whether libevent handle is owned by itself */
     bool eb_loop;
     /** network stack */
-    PeerNetwork<MsgHotStuff> pn;
+    PeerNetwork<opcode_t> pn;
 #ifdef HOTSTUFF_ENABLE_BLK_PROFILE
     BlockProfiler blk_profiler;
 #endif
@@ -142,13 +166,13 @@ class HotStuffBase: public HotStuffCore {
     void on_deliver_blk(const block_t &blk);
 
     /** deliver consensus message: <propose> */
-    inline void propose_handler(const MsgHotStuff &, conn_t);
+    inline void propose_handler(MsgPropose &&, conn_t);
     /** deliver consensus message: <vote> */
-    inline void vote_handler(const MsgHotStuff &, conn_t);
+    inline void vote_handler(MsgVote &&, conn_t);
     /** fetches full block data */
-    inline void query_fetch_blk_handler(const MsgHotStuff &, conn_t);
+    inline void req_blk_handler(MsgReqBlock &&, conn_t);
     /** receives a block */
-    inline void resp_fetch_blk_handler(const MsgHotStuff &, conn_t);
+    inline void resp_blk_handler(MsgRespBlock &&, conn_t);
 
     void do_broadcast_proposal(const Proposal &) override;
     void do_vote(ReplicaID, const Vote &) override;
@@ -278,7 +302,7 @@ FetchContext<ent_type>::FetchContext(
                                 const uint256_t &ent_hash, HotStuffBase *hs):
             promise_t([](promise_t){}),
             hs(hs), ent_hash(ent_hash) {
-    fetch_msg.gen_qfetchblk(std::vector<uint256_t>{ent_hash});
+    fetch_msg = std::vector<uint256_t>{ent_hash};
 
     timeout = Event(hs->eb, -1, 0,
             std::bind(&FetchContext::timeout_cb, this, _1, _2));

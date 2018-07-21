@@ -145,7 +145,7 @@ struct Proposal: public Serializable {
      * a pointer to the object of the class derived from HotStuffCore */
     HotStuffCore *hsc;
 
-    Proposal(HotStuffCore *hsc): blk(nullptr), hsc(hsc) {}
+    Proposal(): blk(nullptr), hsc(nullptr) {}
     Proposal(ReplicaID proposer,
             const uint256_t &bqc_hash,
             block_t &blk,
@@ -192,7 +192,7 @@ struct Vote: public Serializable {
     /** handle of the core object to allow polymorphism */
     HotStuffCore *hsc;
 
-    Vote(HotStuffCore *hsc): cert(nullptr), hsc(hsc) {}
+    Vote(): cert(nullptr), hsc(nullptr) {}
     Vote(ReplicaID voter,
         const uint256_t &bqc_hash,
         const uint256_t &blk_hash,

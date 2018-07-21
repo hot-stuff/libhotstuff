@@ -18,11 +18,13 @@ using hotstuff::ReplicaID;
 using hotstuff::NetAddr;
 using hotstuff::EventContext;
 using hotstuff::uint256_t;
-using hotstuff::MsgClient;
+using hotstuff::MsgReqCmd;
+using hotstuff::MsgRespCmd;
 using hotstuff::CommandDummy;
 using hotstuff::command_t;
 using hotstuff::Finality;
 using hotstuff::HotStuffError;
+using hotstuff::opcode_t;
 
 EventContext eb;
 ReplicaID proposer;
@@ -37,10 +39,10 @@ struct Request {
         rid(rid), cmd(cmd) { et.start(); }
 };
 
-std::unordered_map<ReplicaID, MsgNetwork<MsgClient>::conn_t> conns;
+std::unordered_map<ReplicaID, MsgNetwork<opcode_t>::conn_t> conns;
 std::unordered_map<const uint256_t, Request> waiting;
 std::vector<NetAddr> replicas;
-MsgNetwork<MsgClient> mn(eb, 10, 10, 4096);
+MsgNetwork<opcode_t> mn(eb, 10, 10, 4096);
 
 void set_proposer(ReplicaID rid) {
     proposer = rid;
@@ -53,9 +55,7 @@ void try_send() {
     while (waiting.size() < max_async_num && max_iter_num)
     {
         auto cmd = CommandDummy::make_cmd();
-        MsgClient msg;
-        msg.gen_reqcmd(*cmd);
-        mn.send_msg(msg, conns.find(proposer)->second);
+        mn.send_msg(MsgReqCmd(*cmd), conns.find(proposer)->second);
         HOTSTUFF_LOG_INFO("send new cmd %.10s",
                             get_hex(cmd->get_hash()).c_str());
         waiting.insert(std::make_pair(
@@ -65,12 +65,9 @@ void try_send() {
     }
 }
 
-void on_receive(const MsgClient &msg, MsgNetwork<MsgClient>::conn_t) {
-    Finality fin;
+void client_resp_cmd_handler(MsgRespCmd &&msg, MsgNetwork<opcode_t>::conn_t) {
+    auto &fin = msg.fin;
     HOTSTUFF_LOG_DEBUG("got %s", std::string(msg).c_str());
-    if (!msg.verify_checksum())
-        HOTSTUFF_LOG_ERROR("incorrect checksum %08x", msg.get_checksum());
-    msg.parse_respcmd(fin);
     const uint256_t &cmd_hash = fin.cmd_hash;
     auto it = waiting.find(cmd_hash);
     if (fin.rid != proposer)
@@ -80,9 +77,8 @@ void on_receive(const MsgClient &msg, MsgNetwork<MsgClient>::conn_t) {
     }
     if (fin.rid != it->second.rid)
     {
-        MsgClient msg;
-        msg.gen_reqcmd(*(waiting.find(cmd_hash)->second.cmd));
-        mn.send_msg(msg, conns.find(proposer)->second);
+        mn.send_msg(MsgReqCmd(*(waiting.find(cmd_hash)->second.cmd)),
+                    conns.find(proposer)->second);
         HOTSTUFF_LOG_INFO("resend cmd %.10s",
                             get_hex(cmd_hash).c_str());
         it->second.et.start();
@@ -107,7 +103,7 @@ int main(int argc, char **argv) {
     auto opt_max_iter_num = Config::OptValInt::create(100);
     auto opt_max_async_num = Config::OptValInt::create(10);
 
-    mn.reg_handler(hotstuff::RESP_CMD, on_receive);
+    mn.reg_handler(client_resp_cmd_handler);
 
     try {
         config.add_opt("idx", opt_idx, Config::SET_VAL);
