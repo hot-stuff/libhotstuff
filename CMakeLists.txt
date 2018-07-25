@@ -6,7 +6,6 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/salticidae/cmake
 add_subdirectory(salticidae)
 include_directories(salticidae/include)
 
-find_package(Libevent REQUIRED)
 find_package(OpenSSL REQUIRED)
 
 include(ExternalProject)
@@ -56,12 +55,13 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE "Release")
 endif()
 
-if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+option(HOTSTUFF_ENABLE_DEBUG_LOG "enable debug log" OFF)
+option(HOTSTUFF_ENABLE_NORMAL_LOG "enable normal log" ON)
+
+if(HOTSTUFF_ENABLE_DEBUG_LOG)
     add_definitions(-DHOTSTUFF_DEBUG_LOG)
-    add_definitions(-DSALTICIDAE_DEBUG_LOG)
-elseif(CMAKE_BUILD_TYPE STREQUAL "Release")
+elseif(HOTSTUFF_ENABLE_NORMAL_LOG)
     add_definitions(-DHOTSTUFF_NORMAL_LOG)
-    add_definitions(-DSALTICIDAE_NORMAL_LOG)
 endif()
 
 # add executables
