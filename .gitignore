@@ -11,6 +11,7 @@ hotstuff-keygen
 libhotstuff.a
 src/*.swo
 src/*.swp
+include/hotstuff/config.h
 *.a
 *.o
 *.la

@@ -1,0 +1,7 @@
+#ifndef _HOTSTUFF_CONFIG_H
+#define _HOTSTUFF_CONFIG_H
+
+#cmakedefine HOTSTUFF_ENABLE_DEBUG_LOG
+#cmakedefine HOTSTUFF_ENABLE_NORMAL_LOG
+
+#endif

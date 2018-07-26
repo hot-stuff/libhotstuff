@@ -1,6 +1,7 @@
 #ifndef _HOTSTUFF_UTIL_H
 #define _HOTSTUFF_UTIL_H
 
+#include "hotstuff/config.h"
 #include "salticidae/util.h"
 
 namespace hotstuff {
@@ -12,12 +13,12 @@ class Logger: public salticidae::Logger {
 
 extern Logger logger;
 
-#ifdef HOTSTUFF_DEBUG_LOG
+#ifdef HOTSTUFF_ENABLE_DEBUG_LOG
 #define HOTSTUFF_NORMAL_LOG
 #define HOTSTUFF_ENABLE_LOG_DEBUG
 #endif
 
-#ifdef HOTSTUFF_NORMAL_LOG
+#ifdef HOTSTUFF_ENABLE_NORMAL_LOG
 #define HOTSTUFF_ENABLE_LOG_INFO
 #define HOTSTUFF_ENABLE_LOG_WARN
 #endif

@@ -58,11 +58,7 @@ endif()
 option(HOTSTUFF_ENABLE_DEBUG_LOG "enable debug log" OFF)
 option(HOTSTUFF_ENABLE_NORMAL_LOG "enable normal log" ON)
 
-if(HOTSTUFF_ENABLE_DEBUG_LOG)
-    add_definitions(-DHOTSTUFF_DEBUG_LOG)
-elseif(HOTSTUFF_ENABLE_NORMAL_LOG)
-    add_definitions(-DHOTSTUFF_NORMAL_LOG)
-endif()
+configure_file(src/config.h.in include/hotstuff/config.h @ONLY)
 
 # add executables
 
