@@ -340,7 +340,7 @@ class PartCertSecp256k1: public SigSecp256k1, public PartCert {
 class QuorumCertSecp256k1: public QuorumCert {
     uint256_t blk_hash;
     salticidae::Bits rids;
-    std::vector<SigSecp256k1> sigs;
+    std::unordered_map<ReplicaID, SigSecp256k1> sigs;
 
     public:
     QuorumCertSecp256k1() = default;
@@ -349,11 +349,9 @@ class QuorumCertSecp256k1: public QuorumCert {
     void add_part(ReplicaID rid, const PartCert &pc) override {
         if (pc.get_blk_hash() != blk_hash)
             throw std::invalid_argument("PartCert does match the block hash");
-        if (!rids.get(rid))
-        {
-            rids.set(rid);
-            sigs.push_back(static_cast<const PartCertSecp256k1 &>(pc));
-        }
+        sigs.insert(std::make_pair(
+            rid, static_cast<const PartCertSecp256k1 &>(pc)));
+        rids.set(rid);
     }
 
     void compute() override {}
@@ -368,13 +366,14 @@ class QuorumCertSecp256k1: public QuorumCert {
 
     void serialize(DataStream &s) const override {
         s << blk_hash << rids;
-        for (const auto &sig: sigs) s << sig;
+        for (size_t i = 0; i < rids.size(); i++)
+            if (rids.get(i)) s << sigs.at(i);
     }
 
     void unserialize(DataStream &s) override {
         s >> blk_hash >> rids;
-        sigs.resize(rids.size());
-        for (auto &sig: sigs) s >> sig;
+        for (size_t i = 0; i < rids.size(); i++)
+            if (rids.get(i)) s >> sigs[i];
     }
 };
 

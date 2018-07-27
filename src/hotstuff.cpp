@@ -53,13 +53,7 @@ void MsgRespBlock::postponed_parse(HotStuffCore *hsc) {
     {
         Block _blk;
         _blk.unserialize(serialized, hsc);
-        if (!_blk.verify(hsc->get_config()))
-            blk = hsc->storage->add_blk(std::move(_blk));
-        else
-        {
-            blk = nullptr;
-            LOG_WARN("block is invalid");
-        }
+        blk = hsc->storage->add_blk(std::move(_blk), hsc->get_config());
     }
 }
 
@@ -244,6 +238,7 @@ void HotStuffBase::propose_handler(MsgPropose &&msg, conn_t conn) {
     msg.postponed_parse(this);
     auto &prop = msg.proposal;
     block_t blk = prop.blk;
+    if (!blk) return;
     promise::all(std::vector<promise_t>{
         async_deliver_blk(prop.bqc_hash, peer),
         async_deliver_blk(blk->get_hash(), peer),

@@ -67,7 +67,7 @@ void try_send() {
 
 void client_resp_cmd_handler(MsgRespCmd &&msg, MsgNetwork<opcode_t>::conn_t) {
     auto &fin = msg.fin;
-    HOTSTUFF_LOG_DEBUG("got %s", std::string(msg).c_str());
+    HOTSTUFF_LOG_DEBUG("got %s", std::string(msg.fin).c_str());
     const uint256_t &cmd_hash = fin.cmd_hash;
     auto it = waiting.find(cmd_hash);
     if (fin.rid != proposer)

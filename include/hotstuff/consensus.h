@@ -166,7 +166,7 @@ struct Proposal: public Serializable {
           >> bqc_hash;
         Block _blk;
         _blk.unserialize(s, hsc);
-        blk = hsc->storage->add_blk(std::move(_blk));
+        blk = hsc->storage->add_blk(std::move(_blk), hsc->get_config());
     }
 
     operator std::string () const {

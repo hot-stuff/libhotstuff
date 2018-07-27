@@ -28,7 +28,8 @@ using salticidae::Event;
 using salticidae::EventContext;
 using promise::promise_t;
 
-inline std::string get_hex10(const uint256_t &x) {
+template<typename SerialType>
+inline std::string get_hex10(const SerialType &x) {
     return get_hex(x).substr(0, 10);
 }
 

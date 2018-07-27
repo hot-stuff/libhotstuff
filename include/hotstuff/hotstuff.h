@@ -223,6 +223,8 @@ class HotStuff: public HotStuffBase {
     protected:
 
     part_cert_bt create_part_cert(const PrivKey &priv_key, const uint256_t &blk_hash) override {
+        HOTSTUFF_LOG_DEBUG("create part cert with priv=%s, blk_hash=%s",
+                            get_hex10(priv_key).c_str(), get_hex10(blk_hash).c_str());
         return new PartCertType(
                     static_cast<const PrivKeyType &>(priv_key),
                     blk_hash);

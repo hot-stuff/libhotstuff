@@ -44,10 +44,14 @@ class ReplicaConfig {
     std::unordered_map<ReplicaID, ReplicaInfo> replica_map;
 
     public:
+    size_t nreplicas;
     size_t nmajority;
+
+    ReplicaConfig(): nreplicas(0), nmajority(0) {}
 
     void add_replica(ReplicaID rid, const ReplicaInfo &info) {
         replica_map.insert(std::make_pair(rid, info));
+        nreplicas++;
     }
 
     const ReplicaInfo &get_info(ReplicaID rid) const {
@@ -209,7 +213,12 @@ class EntityStorage {
         return blk_cache.count(blk_hash);
     }
 
-    const block_t &add_blk(Block &&_blk) {
+    block_t add_blk(Block &&_blk, const ReplicaConfig &config) {
+        if (!_blk.verify(config))
+        {
+            HOTSTUFF_LOG_WARN("block is invalid");
+            return nullptr;
+        }
         block_t blk = new Block(std::move(_blk));
         return blk_cache.insert(std::make_pair(blk->get_hash(), blk)).first->second;
     }

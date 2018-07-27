@@ -125,7 +125,7 @@ void HotStuffCore::on_propose(const std::vector<command_t> &cmds,
     }
     /* create the new block */
     block_t bnew = storage->add_blk(
-        Block(
+        new Block(
             parents,
             cmds,
             p->height + 1,
