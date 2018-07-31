@@ -39,7 +39,7 @@ section may be incomplete and subject to changes.
 ::
 
     # ensure openssl and libevent are installed on your machine
-    cmake -DCMAKE_BUILD_TYPE=Release . -DCMAKE_CXX_FLAGS="-g -DHOTSTUFF_ENABLE_LOG_PROTO" -DBUILD_SHARED=ON
+    cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED=ON -DHOTSTUFF_PROTO_LOG=ON
     make
 
     # start 4 demo replicas with ./run_replicas.sh
