@@ -88,7 +88,7 @@ void HotStuffCore::check_commit(const block_t &_blk) {
     {
         const block_t &blk = *it;
         blk->decision = 1;
-#ifdef HOTSTUFF_ENABLE_LOG_PROTO
+#ifdef HOTSTUFF_PROTO_LOG
         LOG_INFO("commit %s", std::string(*blk).c_str());
 #endif
         size_t idx = 0;
@@ -137,7 +137,7 @@ void HotStuffCore::on_propose(const std::vector<command_t> &cmds,
     on_deliver_blk(bnew);
     update(bnew_hash);
     Proposal prop(id, bqc->get_hash(), bnew, nullptr);
-#ifdef HOTSTUFF_ENABLE_LOG_PROTO
+#ifdef HOTSTUFF_PROTO_LOG
     LOG_INFO("propose %s", std::string(*bnew).c_str());
 #endif
     /* self-vote */
@@ -151,7 +151,7 @@ void HotStuffCore::on_propose(const std::vector<command_t> &cmds,
 
 void HotStuffCore::on_receive_proposal(const Proposal &prop) {
     if (!update(prop.bqc_hash)) return;
-#ifdef HOTSTUFF_ENABLE_LOG_PROTO
+#ifdef HOTSTUFF_PROTO_LOG
     LOG_INFO("got %s", std::string(prop).c_str());
 #endif
     block_t bnew = prop.blk;
@@ -170,7 +170,7 @@ void HotStuffCore::on_receive_proposal(const Proposal &prop) {
             vheight = bnew->height;
         }
     }
-#ifdef HOTSTUFF_ENABLE_LOG_PROTO
+#ifdef HOTSTUFF_PROTO_LOG
     LOG_INFO("now state: %s", std::string(*this).c_str());
 #endif
     do_vote(prop.proposer,
@@ -185,7 +185,7 @@ void HotStuffCore::on_receive_proposal(const Proposal &prop) {
 
 void HotStuffCore::on_receive_vote(const Vote &vote) {
     if (!update(vote.bqc_hash)) return;
-#ifdef HOTSTUFF_ENABLE_LOG_PROTO
+#ifdef HOTSTUFF_PROTO_LOG
     LOG_INFO("got %s", std::string(vote).c_str());
     LOG_INFO("now state: %s", std::string(*this).c_str());
 #endif

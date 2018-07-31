@@ -55,8 +55,11 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE "Release")
 endif()
 
-option(HOTSTUFF_ENABLE_DEBUG_LOG "enable debug log" OFF)
-option(HOTSTUFF_ENABLE_NORMAL_LOG "enable normal log" ON)
+option(HOTSTUFF_DEBUG_LOG "enable debug log" OFF)
+option(HOTSTUFF_NORMAL_LOG "enable normal log" ON)
+option(HOTSTUFF_PROTO_LOG "enable protocol log" OFF)
+option(HOTSTUFF_MSG_STAT "eanble message statistics" ON)
+option(HOTSTUFF_BLK_PROFILE "enable block profiling" OFF)
 
 configure_file(src/config.h.in include/hotstuff/config.h @ONLY)
 

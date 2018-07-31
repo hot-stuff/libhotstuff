@@ -96,7 +96,7 @@ void HotStuffBase::add_replica(ReplicaID idx, const NetAddr &addr,
 }
 
 void HotStuffBase::on_fetch_blk(const block_t &blk) {
-#ifdef HOTSTUFF_ENABLE_TX_PROFILE
+#ifdef HOTSTUFF_BLK_PROFILE
     blk_profiler.get_tx(blk->get_hash());
 #endif
     LOG_DEBUG("fetched %.10s", get_hex(blk->get_hash()).c_str());
@@ -174,7 +174,7 @@ promise_t HotStuffBase::async_fetch_blk(const uint256_t &blk_hash,
     auto it = blk_fetch_waiting.find(blk_hash);
     if (it == blk_fetch_waiting.end())
     {
-#ifdef HOTSTUFF_ENABLE_TX_PROFILE
+#ifdef HOTSTUFF_BLK_PROFILE
         blk_profiler.rec_tx(blk_hash, false);
 #endif
         it = blk_fetch_waiting.insert(

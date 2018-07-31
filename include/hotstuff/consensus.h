@@ -57,7 +57,8 @@ class HotStuffCore {
      * functions. */
     void on_init(uint32_t nfaulty) { config.nmajority = 2 * nfaulty + 1; }
 
-    /** Call to deliver a block.
+    /* TODO: better name for "delivery" ? */
+    /** Call to inform the state machine that a block is ready to be handled.
      * A block is only delivered if itself is fetched, the block for the
      * contained qc is fetched and all parents are delivered. The user should
      * always ensure this invariant. The invalid blocks will be dropped by this

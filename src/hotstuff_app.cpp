@@ -134,7 +134,7 @@ int main(int argc, char **argv) {
     config.add_opt("help", opt_help, Config::SWITCH_ON, 'h', "show this help info");
 
     EventContext eb;
-#ifndef HOTSTUFF_ENABLE_LOG_DEBUG
+#ifdef HOTSTUFF_NORMAL_LOG
     try {
 #endif
         config.parse(argc, argv);
@@ -185,7 +185,7 @@ int main(int argc, char **argv) {
                                 hotstuff::from_hex(replicas[i].second));
         }
         papp->start();
-#ifndef HOTSTUFF_ENABLE_LOG_DEBUG
+#ifdef HOTSTUFF_NORMAL_LOG
     } catch (std::exception &e) {
         HOTSTUFF_LOG_INFO("exception: %s", e.what());
         elapsed.stop(true);
@@ -220,24 +220,10 @@ void HotStuffApp::client_request_cmd_handler(MsgReqCmd &&msg, conn_t conn) {
     msg.postponed_parse(this);
     auto cmd = msg.cmd;
     std::vector<promise_t> pms;
-    bool flag = true;
-#ifndef HOTSTUFF_DISABLE_TX_VERIFY
-    flag &= cmd->verify();
-#endif
-    const uint256_t cmd_hash = cmd->get_hash();
-    if (!flag)
-    {
-        LOG_WARN("invalid client cmd");
-        cn.send_msg(MsgRespCmd(
-                Finality(get_id(), -1, 0, 0, cmd_hash, uint256_t())), addr);
-    }
-    else
-    {
-        LOG_DEBUG("processing %s", std::string(*cmd).c_str());
-        exec_command(cmd).then([this, addr](Finality fin) {
-            cn.send_msg(MsgRespCmd(fin), addr);
-        });
-    }
+    LOG_DEBUG("processing %s", std::string(*cmd).c_str());
+    exec_command(cmd).then([this, addr](Finality fin) {
+        cn.send_msg(MsgRespCmd(fin), addr);
+    });
 }
 
 void HotStuffApp::start() {
@@ -249,11 +235,6 @@ void HotStuffApp::start() {
     LOG_INFO("parent_limit = %d", parent_limit);
     LOG_INFO("conns = %lu", HotStuff::size());
     LOG_INFO("** starting the event loop...");
-#ifdef HOTSTUFF_DISABLE_TX_VERIFY
-    LOG_INFO("!! verification disabled !!");
-#else
-    LOG_INFO("** verification enabled **");
-#endif
     HotStuff::start();
     /* enter the event main loop */
     eb.dispatch();

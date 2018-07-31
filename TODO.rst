@@ -1,1 +1,2 @@
 - Implement a basic long-standing leader PaceMaker
+- Persistent protocol state (for safety)

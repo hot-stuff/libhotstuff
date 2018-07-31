@@ -266,7 +266,7 @@ class EntityStorage {
         if (blk.get_cnt() == 2) /* only referred by blk and the storage */
         {
             const auto &blk_hash = blk->get_hash();
-#ifdef HOTSTUFF_ENABLE_LOG_PROTO
+#ifdef HOTSTUFF_PROTO_LOG
             HOTSTUFF_LOG_INFO("releasing blk %.10s", get_hex(blk_hash).c_str());
 #endif
             for (const auto &cmd: blk->get_cmds())
@@ -274,7 +274,7 @@ class EntityStorage {
             blk_cache.erase(blk_hash);
             return true;
         }
-#ifdef HOTSTUFF_ENABLE_LOG_PROTO
+#ifdef HOTSTUFF_PROTO_LOG
         else
             HOTSTUFF_LOG_INFO("cannot release (%lu)", blk.get_cnt());
 #endif

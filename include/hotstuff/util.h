@@ -13,12 +13,12 @@ class Logger: public salticidae::Logger {
 
 extern Logger logger;
 
-#ifdef HOTSTUFF_ENABLE_DEBUG_LOG
+#ifdef HOTSTUFF_DEBUG_LOG
 #define HOTSTUFF_NORMAL_LOG
 #define HOTSTUFF_ENABLE_LOG_DEBUG
 #endif
 
-#ifdef HOTSTUFF_ENABLE_NORMAL_LOG
+#ifdef HOTSTUFF_NORMAL_LOG
 #define HOTSTUFF_ENABLE_LOG_INFO
 #define HOTSTUFF_ENABLE_LOG_WARN
 #endif
@@ -43,7 +43,7 @@ extern Logger logger;
 
 #define HOTSTUFF_LOG_ERROR(...) hotstuff::logger.error(__VA_ARGS__)
 
-#ifdef HOTSTUFF_ENABLE_BLK_PROFILE
+#ifdef HOTSTUFF_BLK_PROFILE
 class BlockProfiler {
     enum BlockState {
         BLK_SEEN,

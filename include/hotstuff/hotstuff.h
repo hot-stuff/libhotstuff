@@ -135,7 +135,7 @@ class HotStuffBase: public HotStuffCore {
     bool eb_loop;
     /** network stack */
     PeerNetwork<opcode_t> pn;
-#ifdef HOTSTUFF_ENABLE_BLK_PROFILE
+#ifdef HOTSTUFF_BLK_PROFILE
     BlockProfiler blk_profiler;
 #endif
     /* queues for async tasks */
