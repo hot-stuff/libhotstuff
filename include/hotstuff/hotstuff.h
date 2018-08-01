@@ -116,7 +116,7 @@ class BlockDeliveryContext: public promise_t {
 class HotStuffBase: public HotStuffCore {
     using BlockFetchContext = FetchContext<ENT_TYPE_BLK>;
     using CmdFetchContext = FetchContext<ENT_TYPE_CMD>;
-    using conn_t = PeerNetwork<opcode_t>::conn_t;
+    using Conn = PeerNetwork<opcode_t>::Conn;
 
     friend BlockFetchContext;
     friend CmdFetchContext;
@@ -166,13 +166,13 @@ class HotStuffBase: public HotStuffCore {
     void on_deliver_blk(const block_t &blk);
 
     /** deliver consensus message: <propose> */
-    inline void propose_handler(MsgPropose &&, conn_t);
+    inline void propose_handler(MsgPropose &&, Conn &);
     /** deliver consensus message: <vote> */
-    inline void vote_handler(MsgVote &&, conn_t);
+    inline void vote_handler(MsgVote &&, Conn &);
     /** fetches full block data */
-    inline void req_blk_handler(MsgReqBlock &&, conn_t);
+    inline void req_blk_handler(MsgReqBlock &&, Conn &);
     /** receives a block */
-    inline void resp_blk_handler(MsgRespBlock &&, conn_t);
+    inline void resp_blk_handler(MsgRespBlock &&, Conn &);
 
     void do_broadcast_proposal(const Proposal &) override;
     void do_vote(ReplicaID, const Vote &) override;

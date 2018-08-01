@@ -55,7 +55,7 @@ void try_send() {
     while (waiting.size() < max_async_num && max_iter_num)
     {
         auto cmd = CommandDummy::make_cmd();
-        mn.send_msg(MsgReqCmd(*cmd), conns.find(proposer)->second);
+        mn.send_msg(MsgReqCmd(*cmd), *conns.at(proposer));
         HOTSTUFF_LOG_INFO("send new cmd %.10s",
                             get_hex(cmd->get_hash()).c_str());
         waiting.insert(std::make_pair(
@@ -65,7 +65,7 @@ void try_send() {
     }
 }
 
-void client_resp_cmd_handler(MsgRespCmd &&msg, MsgNetwork<opcode_t>::conn_t) {
+void client_resp_cmd_handler(MsgRespCmd &&msg, MsgNetwork<opcode_t>::Conn &) {
     auto &fin = msg.fin;
     HOTSTUFF_LOG_DEBUG("got %s", std::string(msg.fin).c_str());
     const uint256_t &cmd_hash = fin.cmd_hash;
@@ -78,7 +78,7 @@ void client_resp_cmd_handler(MsgRespCmd &&msg, MsgNetwork<opcode_t>::conn_t) {
     if (fin.rid != it->second.rid)
     {
         mn.send_msg(MsgReqCmd(*(waiting.find(cmd_hash)->second.cmd)),
-                    conns.find(proposer)->second);
+                    *conns.at(proposer));
         HOTSTUFF_LOG_INFO("resend cmd %.10s",
                             get_hex(cmd_hash).c_str());
         it->second.et.start();

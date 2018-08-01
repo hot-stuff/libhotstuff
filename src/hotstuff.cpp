@@ -233,8 +233,8 @@ promise_t HotStuffBase::async_deliver_blk(const uint256_t &blk_hash,
     return static_cast<promise_t &>(pm);
 }
 
-void HotStuffBase::propose_handler(MsgPropose &&msg, conn_t conn) {
-    const NetAddr &peer = conn->get_peer();
+void HotStuffBase::propose_handler(MsgPropose &&msg, Conn &conn) {
+    const NetAddr &peer = conn.get_peer();
     msg.postponed_parse(this);
     auto &prop = msg.proposal;
     block_t blk = prop.blk;
@@ -247,8 +247,8 @@ void HotStuffBase::propose_handler(MsgPropose &&msg, conn_t conn) {
     });
 }
 
-void HotStuffBase::vote_handler(MsgVote &&msg, conn_t conn) {
-    const NetAddr &peer = conn->get_peer();
+void HotStuffBase::vote_handler(MsgVote &&msg, Conn &conn) {
+    const NetAddr &peer = conn.get_peer();
     msg.postponed_parse(this);
     auto &vote = msg.vote;
     promise::all(std::vector<promise_t>{
@@ -259,8 +259,8 @@ void HotStuffBase::vote_handler(MsgVote &&msg, conn_t conn) {
     });
 }
 
-void HotStuffBase::req_blk_handler(MsgReqBlock &&msg, conn_t conn) {
-    const NetAddr replica = conn->get_peer();
+void HotStuffBase::req_blk_handler(MsgReqBlock &&msg, Conn &conn) {
+    const NetAddr replica = conn.get_peer();
     auto &blk_hashes = msg.blk_hashes;
     std::vector<promise_t> pms;
     for (const auto &h: blk_hashes)
@@ -276,7 +276,7 @@ void HotStuffBase::req_blk_handler(MsgReqBlock &&msg, conn_t conn) {
     });
 }
 
-void HotStuffBase::resp_blk_handler(MsgRespBlock &&msg, conn_t) {
+void HotStuffBase::resp_blk_handler(MsgRespBlock &&msg, Conn &) {
     msg.postponed_parse(this);
     for (const auto &blk: msg.blks)
         if (blk) on_fetch_blk(blk);

@@ -65,9 +65,9 @@ class HotStuffApp: public HotStuff {
     /** Maximum number of parents. */
     int32_t parent_limit;
 
-    using conn_t = ClientNetwork<opcode_t>::conn_t;
+    using Conn = ClientNetwork<opcode_t>::Conn;
 
-    void client_request_cmd_handler(MsgReqCmd &&, conn_t);
+    void client_request_cmd_handler(MsgReqCmd &&, Conn &);
     void print_stat_cb(evutil_socket_t, short);
 
     command_t parse_cmd(DataStream &s) override {
@@ -215,8 +215,8 @@ HotStuffApp::HotStuffApp(uint32_t blk_size,
     cn.listen(clisten_addr);
 }
 
-void HotStuffApp::client_request_cmd_handler(MsgReqCmd &&msg, conn_t conn) {
-    const NetAddr addr = conn->get_addr();
+void HotStuffApp::client_request_cmd_handler(MsgReqCmd &&msg, Conn &conn) {
+    const NetAddr addr = conn.get_addr();
     msg.postponed_parse(this);
     auto cmd = msg.cmd;
     std::vector<promise_t> pms;
