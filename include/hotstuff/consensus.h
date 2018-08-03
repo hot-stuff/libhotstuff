@@ -212,7 +212,7 @@ struct Vote: public Serializable {
         voter(other.voter),
         bqc_hash(other.bqc_hash),
         blk_hash(other.blk_hash),
-        cert(other.cert->clone()),
+        cert(other.cert ? other.cert->clone() : nullptr),
         hsc(other.hsc) {}
 
     Vote(Vote &&other) = default;
