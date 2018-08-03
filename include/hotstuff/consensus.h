@@ -80,7 +80,8 @@ class HotStuffCore {
      * contain at least one block, and the first block is the actual parent,
      * while the others are uncles/aunts */
     void on_propose(const std::vector<command_t> &cmds,
-                    const std::vector<block_t> &parents);
+                    const std::vector<block_t> &parents,
+                    serializable_bt &&extra = nullptr);
 
     /* Functions required to construct concrete instances for abstract classes.
      * */
@@ -113,6 +114,8 @@ class HotStuffCore {
     virtual quorum_cert_bt parse_quorum_cert(DataStream &s) = 0;
     /** Create a command object from its serialized form. */
     virtual command_t parse_cmd(DataStream &s) = 0;
+    /** Create the extra data from its serialized form. */
+    virtual serializable_bt parse_extra_block_data(DataStream &) { return nullptr; }
 
     public:
     /** Add a replica to the current configuration. This should only be called

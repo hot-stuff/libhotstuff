@@ -109,7 +109,8 @@ bool HotStuffCore::update(const uint256_t &bqc_hash) {
 }
 
 void HotStuffCore::on_propose(const std::vector<command_t> &cmds,
-                            const std::vector<block_t> &parents) {
+                            const std::vector<block_t> &parents,
+                            serializable_bt &&extra) {
     if (parents.empty())
         throw std::runtime_error("empty parents");
     for (const auto &_: parents) tails.erase(_);
@@ -125,11 +126,10 @@ void HotStuffCore::on_propose(const std::vector<command_t> &cmds,
     }
     /* create the new block */
     block_t bnew = storage->add_blk(
-        new Block(
-            parents,
-            cmds,
+        new Block(parents, cmds,
+            std::move(qc), std::move(extra),
             p->height + 1,
-            std::move(qc), qc_ref,
+            qc_ref,
             nullptr
         ));
     const uint256_t bnew_hash = bnew->get_hash();

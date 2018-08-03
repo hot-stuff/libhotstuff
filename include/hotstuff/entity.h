@@ -102,13 +102,17 @@ get_hashes(const std::vector<Hashable> &plist) {
     return std::move(hashes);
 }
 
+using serializable_bt = BoxObj<Serializable>;
+
 class Block {
     friend HotStuffCore;
     std::vector<uint256_t> parent_hashes;
     std::vector<command_t> cmds;
     quorum_cert_bt qc;
-    uint256_t hash;
+    serializable_bt extra;
 
+    /* the following fields can be derived from above */
+    uint256_t hash;
     std::vector<block_t> parents;
     block_t qc_ref;
     quorum_cert_bt self_qc;
@@ -121,12 +125,14 @@ class Block {
     public:
     Block():
         qc(nullptr),
+        extra(nullptr),
         qc_ref(nullptr),
         self_qc(nullptr), height(0),
         delivered(false), decision(0) {}
 
     Block(bool delivered, int8_t decision):
         qc(nullptr),
+        extra(nullptr),
         hash(salticidae::get_hash(*this)),
         qc_ref(nullptr),
         self_qc(nullptr), height(0),
@@ -134,14 +140,16 @@ class Block {
 
     Block(const std::vector<block_t> &parents,
         const std::vector<command_t> &cmds,
-        uint32_t height,
         quorum_cert_bt &&qc,
+        serializable_bt &&extra,
+        uint32_t height,
         const block_t &qc_ref,
         quorum_cert_bt &&self_qc,
         int8_t decision = 0):
             parent_hashes(get_hashes(parents)),
             cmds(cmds),
             qc(std::move(qc)),
+            extra(std::move(extra)),
             hash(salticidae::get_hash(*this)),
             parents(parents),
             qc_ref(qc_ref),
@@ -184,6 +192,8 @@ class Block {
     const quorum_cert_bt &get_qc() const { return qc; }
 
     const block_t &get_qc_ref() const { return qc_ref; }
+
+    const serializable_bt &get_extra() const { return extra; }
 
     operator std::string () const {
         DataStream s;
