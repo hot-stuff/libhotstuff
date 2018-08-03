@@ -64,6 +64,7 @@ bool HotStuffCore::on_deliver_blk(const block_t &blk) {
 
     blk->delivered = true;
     LOG_DEBUG("deliver %s", std::string(*blk).c_str());
+    on_deliver_blk_(blk);
     return true;
 }
 
@@ -173,6 +174,8 @@ void HotStuffCore::on_receive_proposal(const Proposal &prop) {
 #ifdef HOTSTUFF_PROTO_LOG
     LOG_INFO("now state: %s", std::string(*this).c_str());
 #endif
+    if (bnew->qc_ref) on_qc_finish(bnew);
+    on_receive_proposal_(prop);
     do_vote(prop.proposer,
         Vote(id,
             bqc->get_hash(),
@@ -272,10 +275,20 @@ promise_t HotStuffCore::async_wait_propose() {
     return propose_waiting;
 }
 
+promise_t HotStuffCore::async_wait_receive_proposal() {
+    return receive_proposal_waiting;
+}
+
 void HotStuffCore::on_propose_(const block_t &blk) {
     auto t = std::move(propose_waiting);
     propose_waiting = promise_t();
     t.resolve(blk);
+}
+
+void HotStuffCore::on_receive_proposal_(const Proposal &prop) {
+    auto t = std::move(receive_proposal_waiting);
+    receive_proposal_waiting = promise_t();
+    t.resolve(prop);
 }
 
 HotStuffCore::operator std::string () const {
