@@ -62,8 +62,6 @@ class HotStuffApp: public HotStuff {
     Event ev_stat_timer;
     /** The listen address for client RPC */
     NetAddr clisten_addr;
-    /** Maximum number of parents. */
-    int32_t parent_limit;
 
     using Conn = ClientNetwork<opcode_t>::Conn;
 
@@ -82,12 +80,12 @@ class HotStuffApp: public HotStuff {
 
     public:
     HotStuffApp(uint32_t blk_size,
-                int32_t parent_limit,
                 double stat_period,
                 ReplicaID idx,
                 const bytearray_t &raw_privkey,
                 NetAddr plisten_addr,
                 NetAddr clisten_addr,
+                hotstuff::pacemaker_bt pmaker,
                 const EventContext &eb);
 
     void start();
@@ -123,6 +121,7 @@ int main(int argc, char **argv) {
     auto opt_client_port = Config::OptValInt::create(-1);
     auto opt_privkey = Config::OptValStr::create();
     auto opt_help = Config::OptValFlag::create(false);
+    auto opt_pace_maker = Config::OptValStr::create("dummy");
 
     config.add_opt("block-size", opt_blk_size, Config::SET_VAL);
     config.add_opt("parent-limit", opt_parent_limit, Config::SET_VAL);
@@ -131,6 +130,7 @@ int main(int argc, char **argv) {
     config.add_opt("idx", opt_idx, Config::SET_VAL);
     config.add_opt("cport", opt_client_port, Config::SET_VAL);
     config.add_opt("privkey", opt_privkey, Config::SET_VAL);
+    config.add_opt("pace-maker", opt_pace_maker, Config::SET_VAL, 'p', "specify pace maker (sticky, dummy)");
     config.add_opt("help", opt_help, Config::SWITCH_ON, 'h', "show this help info");
 
     EventContext eb;
@@ -170,13 +170,20 @@ int main(int argc, char **argv) {
 
         NetAddr plisten_addr{split_ip_port_cport(binding_addr).first};
 
+        auto parent_limit = opt_parent_limit->get();
+        hotstuff::pacemaker_bt pmaker;
+        if (opt_pace_maker->get() == "sticky")
+            pmaker = new hotstuff::PaceMakerSticky(parent_limit);
+        else
+            pmaker = new hotstuff::PaceMakerDummyFixed(1, parent_limit);
+
         papp = new HotStuffApp(opt_blk_size->get(),
-                            opt_parent_limit->get(),
                             opt_stat_period->get(),
                             idx,
                             hotstuff::from_hex(opt_privkey->get()),
                             plisten_addr,
                             NetAddr("0.0.0.0", client_port),
+                            std::move(pmaker),
                             eb);
         for (size_t i = 0; i < replicas.size(); i++)
         {
@@ -195,21 +202,19 @@ int main(int argc, char **argv) {
 }
 
 HotStuffApp::HotStuffApp(uint32_t blk_size,
-                        int32_t parent_limit,
                         double stat_period,
                         ReplicaID idx,
                         const bytearray_t &raw_privkey,
                         NetAddr plisten_addr,
                         NetAddr clisten_addr,
+                        hotstuff::pacemaker_bt pmaker,
                         const EventContext &eb):
     HotStuff(blk_size, idx, raw_privkey,
-            plisten_addr,
-            new hotstuff::PaceMakerDummyFixed(1, parent_limit), eb),
+            plisten_addr, std::move(pmaker), eb),
     stat_period(stat_period),
     eb(eb),
     cn(eb),
-    clisten_addr(clisten_addr),
-    parent_limit(parent_limit) {
+    clisten_addr(clisten_addr) {
     /* register the handlers for msg from clients */
     cn.reg_handler(salticidae::generic_bind(&HotStuffApp::client_request_cmd_handler, this, _1, _2));
     cn.listen(clisten_addr);
@@ -232,7 +237,6 @@ void HotStuffApp::start() {
     ev_stat_timer.add_with_timeout(stat_period);
     LOG_INFO("** starting the system with parameters **");
     LOG_INFO("blk_size = %lu", blk_size);
-    LOG_INFO("parent_limit = %d", parent_limit);
     LOG_INFO("conns = %lu", HotStuff::size());
     LOG_INFO("** starting the event loop...");
     HotStuff::start();

@@ -166,7 +166,7 @@ class PaceMakerDummyFixed: public PaceMakerDummy {
  * sees such new QC, if the QC is given by itself, it becomes the proposer,
  * otherwise yields to the creator of the QC as a follower.
  */
-class PMStickyProposer: public PMWaitQC {
+class PMStickyProposer: virtual public PaceMaker {
     enum {
         PROPOSER,
         FOLLOWER,
@@ -340,7 +340,7 @@ class PMStickyProposer: public PMWaitQC {
 
     public:
     void init(HotStuffCore *hsc) override {
-        PMWaitQC::init(hsc);
+        PaceMaker::init(hsc);
         to_candidate();
     }
 
@@ -368,6 +368,11 @@ class PMStickyProposer: public PMWaitQC {
             pm.resolve(proposer);
         });
     }
+};
+
+struct PaceMakerSticky: public PMAllParents, public PMStickyProposer {
+    PaceMakerSticky(int32_t parent_limit):
+        PMAllParents(parent_limit), PMStickyProposer() {}
 };
 
 }

@@ -128,7 +128,6 @@ class HotStuffBase: public HotStuffCore {
     size_t blk_size;
     /** libevent handle */
     EventContext eb;
-    pacemaker_bt pmaker;
 
     private:
     /** whether libevent handle is owned by itself */
@@ -138,6 +137,7 @@ class HotStuffBase: public HotStuffCore {
 #ifdef HOTSTUFF_BLK_PROFILE
     BlockProfiler blk_profiler;
 #endif
+    pacemaker_bt pmaker;
     /* queues for async tasks */
     std::unordered_map<const uint256_t, BlockFetchContext> blk_fetch_waiting;
     std::unordered_map<const uint256_t, BlockDeliveryContext> blk_delivery_waiting;
