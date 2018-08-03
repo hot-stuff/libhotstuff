@@ -350,6 +350,7 @@ void HotStuffBase::print_stat() const {
     for (const auto &replica: pn.all_peers())
     {
         auto conn = pn.get_peer_conn(replica);
+        if (conn == nullptr) continue;
         size_t ns = conn->get_nsent();
         size_t nr = conn->get_nrecv();
         conn->clear_nsent();

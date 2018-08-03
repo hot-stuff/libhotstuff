@@ -55,7 +55,7 @@ using HotStuff = hotstuff::HotStuffSecp256k1;
 
 class HotStuffApp: public HotStuff {
     double stat_period;
-    EventContext eb;
+    EventContext ec;
     /** Network messaging between a replica and its client. */
     ClientNetwork<opcode_t> cn;
     /** Timer object to schedule a periodic printing of system statistics */
@@ -86,7 +86,7 @@ class HotStuffApp: public HotStuff {
                 NetAddr plisten_addr,
                 NetAddr clisten_addr,
                 hotstuff::pacemaker_bt pmaker,
-                const EventContext &eb);
+                const EventContext &ec);
 
     void start();
 };
@@ -133,7 +133,7 @@ int main(int argc, char **argv) {
     config.add_opt("pace-maker", opt_pace_maker, Config::SET_VAL, 'p', "specify pace maker (sticky, dummy)");
     config.add_opt("help", opt_help, Config::SWITCH_ON, 'h', "show this help info");
 
-    EventContext eb;
+    EventContext ec;
 #ifdef HOTSTUFF_NORMAL_LOG
     try {
 #endif
@@ -173,7 +173,7 @@ int main(int argc, char **argv) {
         auto parent_limit = opt_parent_limit->get();
         hotstuff::pacemaker_bt pmaker;
         if (opt_pace_maker->get() == "sticky")
-            pmaker = new hotstuff::PaceMakerSticky(parent_limit);
+            pmaker = new hotstuff::PaceMakerSticky(parent_limit, 1, ec);
         else
             pmaker = new hotstuff::PaceMakerDummyFixed(1, parent_limit);
 
@@ -184,7 +184,7 @@ int main(int argc, char **argv) {
                             plisten_addr,
                             NetAddr("0.0.0.0", client_port),
                             std::move(pmaker),
-                            eb);
+                            ec);
         for (size_t i = 0; i < replicas.size(); i++)
         {
             auto p = split_ip_port_cport(replicas[i].first);
@@ -208,12 +208,12 @@ HotStuffApp::HotStuffApp(uint32_t blk_size,
                         NetAddr plisten_addr,
                         NetAddr clisten_addr,
                         hotstuff::pacemaker_bt pmaker,
-                        const EventContext &eb):
+                        const EventContext &ec):
     HotStuff(blk_size, idx, raw_privkey,
-            plisten_addr, std::move(pmaker), eb),
+            plisten_addr, std::move(pmaker), ec),
     stat_period(stat_period),
-    eb(eb),
-    cn(eb),
+    ec(ec),
+    cn(ec),
     clisten_addr(clisten_addr) {
     /* register the handlers for msg from clients */
     cn.reg_handler(salticidae::generic_bind(&HotStuffApp::client_request_cmd_handler, this, _1, _2));
@@ -232,7 +232,7 @@ void HotStuffApp::client_request_cmd_handler(MsgReqCmd &&msg, Conn &conn) {
 }
 
 void HotStuffApp::start() {
-    ev_stat_timer = Event(eb, -1, 0,
+    ev_stat_timer = Event(ec, -1, 0,
             std::bind(&HotStuffApp::print_stat_cb, this, _1, _2));
     ev_stat_timer.add_with_timeout(stat_period);
     LOG_INFO("** starting the system with parameters **");
@@ -241,7 +241,7 @@ void HotStuffApp::start() {
     LOG_INFO("** starting the event loop...");
     HotStuff::start();
     /* enter the event main loop */
-    eb.dispatch();
+    ec.dispatch();
 }
 
 

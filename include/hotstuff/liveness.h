@@ -174,7 +174,7 @@ class PMStickyProposer: virtual public PaceMaker {
     } role;
     double qc_timeout;
     double candidate_timeout;
-    EventContext eb;
+    EventContext ec;
     /** QC timer or randomized timeout */
     Event timer;
     block_t last_proposed;
@@ -296,7 +296,7 @@ class PMStickyProposer: virtual public PaceMaker {
         role = FOLLOWER;
         proposer = new_proposer;
         last_proposed = nullptr;
-        timer = Event(eb, -1, 0, [this](int, short) {
+        timer = Event(ec, -1, 0, [this](int, short) {
             /* unable to get a QC in time */
             to_candidate();
         });
@@ -315,7 +315,7 @@ class PMStickyProposer: virtual public PaceMaker {
         role = PROPOSER;
         proposer = hsc->get_id();
         last_proposed = hsc->get_genesis();
-        timer = Event(eb, -1, 0, [this](int, short) {
+        timer = Event(ec, -1, 0, [this](int, short) {
             /* proposer unable to get a QC in time */
             to_candidate();
         });
@@ -330,7 +330,7 @@ class PMStickyProposer: virtual public PaceMaker {
         role = CANDIDATE;
         proposer = hsc->get_id();
         last_proposed = nullptr;
-        timer = Event(eb, -1, 0, [this](int, short) {
+        timer = Event(ec, -1, 0, [this](int, short) {
             candidate_qc_timeout();
         });
         candidate_timeout = qc_timeout;
@@ -339,6 +339,9 @@ class PMStickyProposer: virtual public PaceMaker {
     }
 
     public:
+    PMStickyProposer(double qc_timeout, const EventContext &ec):
+        qc_timeout(qc_timeout), ec(ec) {}
+
     void init(HotStuffCore *hsc) override {
         PaceMaker::init(hsc);
         to_candidate();
@@ -371,8 +374,8 @@ class PMStickyProposer: virtual public PaceMaker {
 };
 
 struct PaceMakerSticky: public PMAllParents, public PMStickyProposer {
-    PaceMakerSticky(int32_t parent_limit):
-        PMAllParents(parent_limit), PMStickyProposer() {}
+    PaceMakerSticky(int32_t parent_limit, double qc_timeout, EventContext eb):
+        PMAllParents(parent_limit), PMStickyProposer(qc_timeout, eb) {}
 };
 
 }
