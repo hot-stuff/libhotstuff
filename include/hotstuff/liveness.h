@@ -1,9 +1,13 @@
 #ifndef _HOTSTUFF_LIVENESS_H
 #define _HOTSTUFF_LIVENESS_H
 
+#include "salticidae/util.h"
 #include "hotstuff/consensus.h"
 
 namespace hotstuff {
+
+using salticidae::_1;
+using salticidae::_2;
 
 /** Abstraction for liveness gadget (oracle). */
 class PaceMaker {
@@ -182,12 +186,17 @@ class PMStickyProposer: public PMWaitQC {
     bool locked;
 
     /* extra state needed for a candidate */
-    std::unordered_map<ReplicaID,
-        std::pair<block_t, promise_t>> last_proposed_by;
+    std::unordered_map<ReplicaID, promise_t> last_proposed_by;
 
     promise_t pm_wait_receive_proposal;
     promise_t pm_wait_propose;
     promise_t pm_qc_finish;
+
+    void reset_qc_timer() {
+        timer.del();
+        timer.add_with_timeout(qc_timeout);
+        HOTSTUFF_LOG_INFO("QC timer reset");
+    }
 
     void clear_promises() {
         pm_wait_receive_proposal.reject();
@@ -201,22 +210,25 @@ class PMStickyProposer: public PMWaitQC {
     void reg_follower_receive_proposal() {
         pm_wait_receive_proposal =
             hsc->async_wait_receive_proposal().then(
-                std::bind(&PMStickyProposer::follower_receive_proposal, this, _1, _2));
+                salticidae::generic_bind(
+                    &PMStickyProposer::follower_receive_proposal, this, _1));
     }
 
     void follower_receive_proposal(const Proposal &prop) {
         if (prop.proposer == proposer)
         {
-            auto qc_ref = prop.blk->qc_ref;
+            auto &qc_ref = prop.blk->get_qc_ref();
             if (last_proposed)
             {
                 if (qc_ref != last_proposed)
+                {
+                    HOTSTUFF_LOG_INFO("proposer misbehave");
                     to_candidate(); /* proposer misbehave */
+                }
             }
+            HOTSTUFF_LOG_INFO("proposer emits new QC");
             last_proposed = prop.blk;
-            /* reset QC timer */
-            timer.del();
-            timer.add_with_timeout(qc_timeout);
+            reset_qc_timer();
         }
         reg_follower_receive_proposal();
     }
@@ -228,6 +240,7 @@ class PMStickyProposer: public PMWaitQC {
             pending_beats.pop();
             pm_qc_finish =
                 hsc->async_qc_finish(last_proposed).then([this, pm]() {
+                    reset_qc_timer();
                     pm.resolve(proposer);
                 });
             locked = true;
@@ -236,7 +249,8 @@ class PMStickyProposer: public PMWaitQC {
 
     void reg_proposer_propose() {
         pm_wait_propose = hsc->async_wait_propose().then(
-            std::bind(&PMStickyProposer::proposer_propose, this, _1, _2));
+            salticidae::generic_bind(
+                &PMStickyProposer::proposer_propose, this, _1));
     }
 
     void proposer_propose(const block_t &blk) {
@@ -244,8 +258,6 @@ class PMStickyProposer: public PMWaitQC {
         locked = false;
         proposer_schedule_next();
         reg_proposer_propose();
-        timer.del();
-        timer.add_with_timeout(qc_timeout);
     }
 
     void candidate_qc_timeout() {
@@ -256,26 +268,30 @@ class PMStickyProposer: public PMWaitQC {
                 to_proposer();
             });
         });
-        on_propose(std::vector<comman_t>{}, get_parents());
-        timer.del();
-        timer.add_with_timeout(gen_rand_timeout(candidate_timeout));
+        reset_qc_timer();
+        hsc->on_propose(std::vector<command_t>{}, get_parents());
     }
 
     void reg_candidate_receive_proposal() {
         pm_wait_receive_proposal =
             hsc->async_wait_receive_proposal().then(
-                std::bind(&PMStickyProposer::candidate_receive_proposal, this, _1, _2));
+                salticidae::generic_bind(
+                    &PMStickyProposer::candidate_receive_proposal, this, _1));
     }
 
     void candidate_receive_proposal(const Proposal &prop) {
-        auto &p = last_proposed_by[prop.proposer];
-        p.second.reject();
-        p = std::make_pair(prop.blk, hsc->async_qc_finish(prop.blk).then([this]() {
-            to_follower(prop.proposer);
-        }));
+        auto proposer = prop.proposer;
+        auto &p = last_proposed_by[proposer];
+        HOTSTUFF_LOG_INFO("got block from %d", proposer);
+        p.reject();
+        p = hsc->async_qc_finish(prop.blk).then([this, proposer]() {
+            to_follower(proposer);
+        });
+        reg_candidate_receive_proposal();
     }
 
     void to_follower(ReplicaID new_proposer) {
+        HOTSTUFF_LOG_INFO("new role: follower");
         clear_promises();
         role = FOLLOWER;
         proposer = new_proposer;
@@ -284,14 +300,17 @@ class PMStickyProposer: public PMWaitQC {
             /* unable to get a QC in time */
             to_candidate();
         });
-        reg_follower_receive_proposal();
         /* redirect all pending cmds to the new proposer */
-        for (auto &pm: pending_beats)
-            pm.resolve(proposer);
-        pending_beats.clear();
+        while (!pending_beats.empty())
+        {
+            pending_beats.front().resolve(proposer);
+            pending_beats.pop();
+        }
+        reg_follower_receive_proposal();
     }
 
     void to_proposer() {
+        HOTSTUFF_LOG_INFO("new role: proposer");
         clear_promises();
         role = PROPOSER;
         proposer = hsc->get_id();
@@ -306,21 +325,23 @@ class PMStickyProposer: public PMWaitQC {
     }
 
     void to_candidate() {
+        HOTSTUFF_LOG_INFO("new role: candidate");
         clear_promises();
         role = CANDIDATE;
         proposer = hsc->get_id();
+        last_proposed = nullptr;
         timer = Event(eb, -1, 0, [this](int, short) {
             candidate_qc_timeout();
         });
         candidate_timeout = qc_timeout;
-        candidate_qc_timeout();
+        timer.add_with_timeout(salticidae::gen_rand_timeout(candidate_timeout));
+        reg_candidate_receive_proposal();
     }
 
     public:
     void init(HotStuffCore *hsc) override {
         PMWaitQC::init(hsc);
-        role = CANDIDATE;
-        proposer = 0;
+        to_candidate();
     }
 
     ReplicaID get_proposer() override {
@@ -328,21 +349,22 @@ class PMStickyProposer: public PMWaitQC {
     }
 
     promise_t beat() override {
-        if (proposer == hsc->get_id())
+        if (role != FOLLOWER)
         {
             promise_t pm;
             pending_beats.push(pm);
-            proposer_schedule_next();
+            if (role == PROPOSER)
+                proposer_schedule_next();
             return std::move(pm);
         }
         else
-            return promise_t([](promise_t &pm) {
+            return promise_t([proposer=proposer](promise_t &pm) {
                 pm.resolve(proposer);
             });
     }
 
-    promise_t next_proposer(ReplicaID last_proposer) override {
-        return promise_t([last_proposer](promise_t &pm) {
+    promise_t next_proposer(ReplicaID) override {
+        return promise_t([proposer=proposer](promise_t &pm) {
             pm.resolve(proposer);
         });
     }

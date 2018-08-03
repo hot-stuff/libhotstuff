@@ -39,7 +39,7 @@ class HotStuffCore {
     bool update(const uint256_t &bqc_hash);
     void on_qc_finish(const block_t &blk);
     void on_propose_(const block_t &blk);
-    void on_deliver_blk_(const block_t &blk);
+    void on_receive_proposal_(const Proposal &prop);
 
     protected:
     ReplicaID id;                  /**< identity of the replica itself */

@@ -66,7 +66,15 @@ promise_t HotStuffBase::exec_command(command_t cmd) {
             pm.resolve(Finality(proposer, -1, 0, 0,
                                 cmd_hash, uint256_t()));
         });
-    cmd_pending.push(storage->add_cmd(cmd));
+
+
+    auto it = decision_waiting.find(cmd_hash);
+    if (it == decision_waiting.end())
+    {
+        cmd_pending.push(storage->add_cmd(cmd));
+        it = decision_waiting.insert(std::make_pair(cmd_hash, promise_t())).first;
+    }
+
     if (cmd_pending.size() >= blk_size)
     {
         std::vector<command_t> cmds;
@@ -75,15 +83,18 @@ promise_t HotStuffBase::exec_command(command_t cmd) {
             cmds.push_back(cmd_pending.front());
             cmd_pending.pop();
         }
-        pmaker->beat().then([this, cmds = std::move(cmds)]() {
-            on_propose(cmds, pmaker->get_parents());
+        pmaker->beat().then([this, cmds = std::move(cmds)](ReplicaID proposer) {
+            if (proposer != get_id())
+            {
+                for (auto &cmd: cmds)
+                    decision_waiting
+                        .at(cmd->get_hash())
+                        .resolve(Finality(proposer, -1, 0, 0,
+                                        cmd->get_hash(), uint256_t()));
+            }
+            else
+                on_propose(cmds, pmaker->get_parents());
         });
-    }
-    auto it = decision_waiting.find(cmd_hash);
-    if (it == decision_waiting.end())
-    {
-        promise_t pm{[](promise_t){}};
-        it = decision_waiting.insert(std::make_pair(cmd_hash, pm)).first;
     }
     return it->second;
 }
@@ -385,10 +396,10 @@ HotStuffBase::HotStuffBase(uint32_t blk_size,
         part_delivery_time_max(0)
 {
     /* register the handlers for msg from replicas */
-    pn.reg_handler(salticidae::handler_bind(&HotStuffBase::propose_handler, this, _1, _2));
-    pn.reg_handler(salticidae::handler_bind(&HotStuffBase::vote_handler, this, _1, _2));
-    pn.reg_handler(salticidae::handler_bind(&HotStuffBase::req_blk_handler, this, _1, _2));
-    pn.reg_handler(salticidae::handler_bind(&HotStuffBase::resp_blk_handler, this, _1, _2));
+    pn.reg_handler(salticidae::generic_bind(&HotStuffBase::propose_handler, this, _1, _2));
+    pn.reg_handler(salticidae::generic_bind(&HotStuffBase::vote_handler, this, _1, _2));
+    pn.reg_handler(salticidae::generic_bind(&HotStuffBase::req_blk_handler, this, _1, _2));
+    pn.reg_handler(salticidae::generic_bind(&HotStuffBase::resp_blk_handler, this, _1, _2));
     pn.listen(listen_addr);
 }
 

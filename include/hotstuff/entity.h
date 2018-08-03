@@ -183,6 +183,8 @@ class Block {
 
     const quorum_cert_bt &get_qc() const { return qc; }
 
+    const block_t &get_qc_ref() const { return qc_ref; }
+
     operator std::string () const {
         DataStream s;
         s << "<block "

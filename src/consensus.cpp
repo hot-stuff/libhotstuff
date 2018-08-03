@@ -64,7 +64,6 @@ bool HotStuffCore::on_deliver_blk(const block_t &blk) {
 
     blk->delivered = true;
     LOG_DEBUG("deliver %s", std::string(*blk).c_str());
-    on_deliver_blk_(blk);
     return true;
 }
 

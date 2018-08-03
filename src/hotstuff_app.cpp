@@ -211,7 +211,7 @@ HotStuffApp::HotStuffApp(uint32_t blk_size,
     clisten_addr(clisten_addr),
     parent_limit(parent_limit) {
     /* register the handlers for msg from clients */
-    cn.reg_handler(salticidae::handler_bind(&HotStuffApp::client_request_cmd_handler, this, _1, _2));
+    cn.reg_handler(salticidae::generic_bind(&HotStuffApp::client_request_cmd_handler, this, _1, _2));
     cn.listen(clisten_addr);
 }
 
