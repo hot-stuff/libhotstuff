@@ -208,6 +208,7 @@ class PMStickyProposer: virtual public PaceMaker {
     }
 
     void reg_follower_receive_proposal() {
+        pm_wait_receive_proposal.reject();
         pm_wait_receive_proposal =
             hsc->async_wait_receive_proposal().then(
                 salticidae::generic_bind(
@@ -238,6 +239,7 @@ class PMStickyProposer: virtual public PaceMaker {
         {
             auto pm = pending_beats.front();
             pending_beats.pop();
+            pm_qc_finish.reject();
             pm_qc_finish =
                 hsc->async_qc_finish(last_proposed).then([this, pm]() {
                     reset_qc_timer();
@@ -248,6 +250,7 @@ class PMStickyProposer: virtual public PaceMaker {
     }
 
     void reg_proposer_propose() {
+        pm_wait_propose.reject();
         pm_wait_propose = hsc->async_wait_propose().then(
             salticidae::generic_bind(
                 &PMStickyProposer::proposer_propose, this, _1));
@@ -263,16 +266,22 @@ class PMStickyProposer: virtual public PaceMaker {
     void candidate_qc_timeout() {
         pm_qc_finish.reject();
         hsc->async_wait_propose().then([this](const block_t &blk) {
+            pm_qc_finish.reject();
             pm_qc_finish = hsc->async_qc_finish(blk).then([this]() {
                 /* managed to collect a QC */
                 to_proposer();
             });
         });
         reset_qc_timer();
-        hsc->on_propose(std::vector<command_t>{}, get_parents());
+        DataStream s;
+        /* FIXME: should extra data be the voter's id? */
+        s << hsc->get_id();
+        hsc->on_propose(std::vector<command_t>{},
+                        get_parents(), std::move(s));
     }
 
     void reg_candidate_receive_proposal() {
+        pm_wait_receive_proposal.reject();
         pm_wait_receive_proposal =
             hsc->async_wait_receive_proposal().then(
                 salticidae::generic_bind(
@@ -282,7 +291,7 @@ class PMStickyProposer: virtual public PaceMaker {
     void candidate_receive_proposal(const Proposal &prop) {
         auto proposer = prop.proposer;
         auto &p = last_proposed_by[proposer];
-        HOTSTUFF_LOG_INFO("got block from %d", proposer);
+        HOTSTUFF_LOG_INFO("got block %s from %d", std::string(*prop.blk).c_str(), proposer);
         p.reject();
         p = hsc->async_qc_finish(prop.blk).then([this, proposer]() {
             to_follower(proposer);
@@ -314,14 +323,14 @@ class PMStickyProposer: virtual public PaceMaker {
         clear_promises();
         role = PROPOSER;
         proposer = hsc->get_id();
-        last_proposed = hsc->get_genesis();
+        last_proposed = nullptr;
         timer = Event(ec, -1, 0, [this](int, short) {
             /* proposer unable to get a QC in time */
             to_candidate();
         });
+        reset_qc_timer();
         /* prepare the variables for the role of a proposer */
-        locked = false;
-        reg_proposer_propose();
+        proposer_propose(hsc->get_genesis());
     }
 
     void to_candidate() {
@@ -366,9 +375,9 @@ class PMStickyProposer: virtual public PaceMaker {
             });
     }
 
-    promise_t next_proposer(ReplicaID) override {
-        return promise_t([proposer=proposer](promise_t &pm) {
-            pm.resolve(proposer);
+    promise_t next_proposer(ReplicaID last_proposer) override {
+        return promise_t([this, last_proposer](promise_t &pm) {
+            pm.resolve(last_proposer); //role == CANDIDATE ? last_proposer : proposer);
         });
     }
 };

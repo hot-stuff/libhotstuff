@@ -110,7 +110,7 @@ bool HotStuffCore::update(const uint256_t &bqc_hash) {
 
 void HotStuffCore::on_propose(const std::vector<command_t> &cmds,
                             const std::vector<block_t> &parents,
-                            serializable_bt &&extra) {
+                            bytearray_t &&extra) {
     if (parents.empty())
         throw std::runtime_error("empty parents");
     for (const auto &_: parents) tails.erase(_);
