@@ -209,8 +209,8 @@ class PMStickyProposer: virtual public PaceMaker {
 
     void reg_follower_receive_proposal() {
         pm_wait_receive_proposal.reject();
-        pm_wait_receive_proposal =
-            hsc->async_wait_receive_proposal().then(
+        (pm_wait_receive_proposal = hsc->async_wait_receive_proposal())
+            .then(
                 salticidae::generic_bind(
                     &PMStickyProposer::follower_receive_proposal, this, _1));
     }
@@ -251,7 +251,7 @@ class PMStickyProposer: virtual public PaceMaker {
 
     void reg_proposer_propose() {
         pm_wait_propose.reject();
-        pm_wait_propose = hsc->async_wait_propose().then(
+        (pm_wait_propose = hsc->async_wait_propose()).then(
             salticidae::generic_bind(
                 &PMStickyProposer::proposer_propose, this, _1));
     }
@@ -263,27 +263,34 @@ class PMStickyProposer: virtual public PaceMaker {
         reg_proposer_propose();
     }
 
-    void candidate_qc_timeout() {
-        pm_qc_finish.reject();
-        hsc->async_wait_propose().then([this](const block_t &blk) {
-            pm_qc_finish.reject();
-            pm_qc_finish = hsc->async_qc_finish(blk).then([this]() {
-                /* managed to collect a QC */
-                to_proposer();
-            });
-        });
-        reset_qc_timer();
+    void gen() {
         DataStream s;
         /* FIXME: should extra data be the voter's id? */
         s << hsc->get_id();
         hsc->on_propose(std::vector<command_t>{},
-                        get_parents(), std::move(s));
+                get_parents(), std::move(s));
+    }
+
+    void candidate_qc_timeout() {
+        pm_qc_finish.reject();
+        pm_wait_propose.reject();
+        (pm_wait_propose = hsc->async_wait_propose()).then([this](const block_t &blk) {
+            pm_qc_finish.reject();
+            pm_qc_finish = hsc->async_qc_finish(blk).then([this, blk]() {
+                HOTSTUFF_LOG_INFO("collected QC for %s", std::string(*blk).c_str());
+                /* managed to collect a QC */
+                to_proposer();
+                gen();
+            });
+        });
+        reset_qc_timer();
+        gen();
     }
 
     void reg_candidate_receive_proposal() {
         pm_wait_receive_proposal.reject();
-        pm_wait_receive_proposal =
-            hsc->async_wait_receive_proposal().then(
+        (pm_wait_receive_proposal = hsc->async_wait_receive_proposal())
+            .then(
                 salticidae::generic_bind(
                     &PMStickyProposer::candidate_receive_proposal, this, _1));
     }

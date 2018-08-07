@@ -173,7 +173,7 @@ void HotStuffCore::on_receive_proposal(const Proposal &prop) {
 #ifdef HOTSTUFF_PROTO_LOG
     LOG_INFO("now state: %s", std::string(*this).c_str());
 #endif
-    if (bnew->qc_ref) on_qc_finish(bnew);
+    if (bnew->qc_ref) on_qc_finish(bnew->qc_ref);
     on_receive_proposal_(prop);
     do_vote(prop.proposer,
         Vote(id,
@@ -271,11 +271,15 @@ void HotStuffCore::on_qc_finish(const block_t &blk) {
 }
 
 promise_t HotStuffCore::async_wait_propose() {
-    return propose_waiting;
+    return propose_waiting.then([](const block_t &blk) {
+        return blk;
+    });
 }
 
 promise_t HotStuffCore::async_wait_receive_proposal() {
-    return receive_proposal_waiting;
+    return receive_proposal_waiting.then([](const Proposal &prop) {
+        return prop;
+    });
 }
 
 void HotStuffCore::on_propose_(const block_t &blk) {
