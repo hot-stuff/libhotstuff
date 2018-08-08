@@ -7,6 +7,7 @@
 #define LOG_INFO HOTSTUFF_LOG_INFO
 #define LOG_DEBUG HOTSTUFF_LOG_DEBUG
 #define LOG_WARN HOTSTUFF_LOG_WARN
+#define LOG_PROTO HOTSTUFF_LOG_PROTO
 
 namespace hotstuff {
 
@@ -88,9 +89,7 @@ void HotStuffCore::check_commit(const block_t &_blk) {
     {
         const block_t &blk = *it;
         blk->decision = 1;
-#ifdef HOTSTUFF_PROTO_LOG
-        LOG_INFO("commit %s", std::string(*blk).c_str());
-#endif
+        LOG_PROTO("commit %s", std::string(*blk).c_str());
         size_t idx = 0;
         for (auto cmd: blk->cmds)
             do_decide(Finality(id, 1, idx, blk->height,
@@ -137,9 +136,7 @@ void HotStuffCore::on_propose(const std::vector<command_t> &cmds,
     on_deliver_blk(bnew);
     update(bnew_hash);
     Proposal prop(id, bqc->get_hash(), bnew, nullptr);
-#ifdef HOTSTUFF_PROTO_LOG
-    LOG_INFO("propose %s", std::string(*bnew).c_str());
-#endif
+    LOG_PROTO("propose %s", std::string(*bnew).c_str());
     /* self-vote */
     on_receive_vote(
         Vote(id, bqc->get_hash(), bnew_hash,
@@ -151,9 +148,7 @@ void HotStuffCore::on_propose(const std::vector<command_t> &cmds,
 
 void HotStuffCore::on_receive_proposal(const Proposal &prop) {
     if (!update(prop.bqc_hash)) return;
-#ifdef HOTSTUFF_PROTO_LOG
-    LOG_INFO("got %s", std::string(prop).c_str());
-#endif
+    LOG_PROTO("got %s", std::string(prop).c_str());
     block_t bnew = prop.blk;
     sanity_check_delivered(bnew);
     bool opinion = false;
@@ -170,10 +165,9 @@ void HotStuffCore::on_receive_proposal(const Proposal &prop) {
             vheight = bnew->height;
         }
     }
-#ifdef HOTSTUFF_PROTO_LOG
-    LOG_INFO("now state: %s", std::string(*this).c_str());
-#endif
-    if (bnew->qc_ref) on_qc_finish(bnew->qc_ref);
+    LOG_PROTO("now state: %s", std::string(*this).c_str());
+    if (bnew->qc_ref)
+        on_qc_finish(bnew->qc_ref);
     on_receive_proposal_(prop);
     do_vote(prop.proposer,
         Vote(id,
@@ -187,10 +181,8 @@ void HotStuffCore::on_receive_proposal(const Proposal &prop) {
 
 void HotStuffCore::on_receive_vote(const Vote &vote) {
     if (!update(vote.bqc_hash)) return;
-#ifdef HOTSTUFF_PROTO_LOG
-    LOG_INFO("got %s", std::string(vote).c_str());
-    LOG_INFO("now state: %s", std::string(*this).c_str());
-#endif
+    LOG_PROTO("got %s", std::string(vote).c_str());
+    LOG_PROTO("now state: %s", std::string(*this).c_str());
     block_t blk = get_delivered_blk(vote.blk_hash);
     if (vote.cert == nullptr) return;
     /* otherwise the vote is positive */

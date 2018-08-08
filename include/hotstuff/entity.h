@@ -224,7 +224,7 @@ class EntityStorage {
     block_t add_blk(Block &&_blk, const ReplicaConfig &config) {
         if (!_blk.verify(config))
         {
-            HOTSTUFF_LOG_WARN("block is invalid");
+            HOTSTUFF_LOG_WARN("invalid %s", std::string(_blk).c_str());
             return nullptr;
         }
         block_t blk = new Block(std::move(_blk));

@@ -57,16 +57,16 @@ void MsgRespBlock::postponed_parse(HotStuffCore *hsc) {
     }
 }
 
+// TODO: improve this function
 promise_t HotStuffBase::exec_command(command_t cmd) {
     const uint256_t &cmd_hash = cmd->get_hash();
     ReplicaID proposer = pmaker->get_proposer();
-    /* not the proposer */
+
     if (proposer != get_id())
         return promise_t([proposer, cmd_hash](promise_t &pm) {
             pm.resolve(Finality(proposer, -1, 0, 0,
                                 cmd_hash, uint256_t()));
         });
-
 
     auto it = decision_waiting.find(cmd_hash);
     if (it == decision_waiting.end())
@@ -87,10 +87,16 @@ promise_t HotStuffBase::exec_command(command_t cmd) {
             if (proposer != get_id())
             {
                 for (auto &cmd: cmds)
-                    decision_waiting
-                        .at(cmd->get_hash())
-                        .resolve(Finality(proposer, -1, 0, 0,
-                                        cmd->get_hash(), uint256_t()));
+                {
+                    const auto &cmd_hash = cmd->get_hash();
+                    auto it = decision_waiting.find(cmd_hash);
+                    if (it != decision_waiting.end())
+                    {
+                        it->second.resolve(Finality(proposer, -1, 0, 0,
+                                                    cmd_hash, uint256_t()));
+                        decision_waiting.erase(it);
+                    }
+                }
             }
             else
                 on_propose(cmds, pmaker->get_parents());
@@ -437,8 +443,8 @@ void HotStuffBase::start(bool eb_loop) {
     uint32_t nfaulty = pn.all_peers().size() / 3;
     if (nfaulty == 0)
         LOG_WARN("too few replicas in the system to tolerate any failure");
-    pmaker->init(this);
     on_init(nfaulty);
+    pmaker->init(this);
     if (eb_loop)
         eb.dispatch();
 }

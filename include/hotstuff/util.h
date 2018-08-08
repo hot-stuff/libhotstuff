@@ -9,13 +9,25 @@ namespace hotstuff {
 class Logger: public salticidae::Logger {
     public:
     using salticidae::Logger::Logger;
+
+    void proto(const char *fmt, ...) {
+        va_list ap;
+        va_start(ap, fmt);
+        write("proto", fmt, ap);
+        va_end(ap);
+    }
 };
 
 extern Logger logger;
 
+#ifdef HOTSTUFF_PROTO_LOG
+#define HOTSTUFF_ENABLE_LOG_PROTO
+#endif
+
 #ifdef HOTSTUFF_DEBUG_LOG
 #define HOTSTUFF_NORMAL_LOG
 #define HOTSTUFF_ENABLE_LOG_DEBUG
+#define HOTSTUFF_ENABLE_LOG_PROTO
 #endif
 
 #ifdef HOTSTUFF_NORMAL_LOG
@@ -39,6 +51,12 @@ extern Logger logger;
 #define HOTSTUFF_LOG_WARN(...) hotstuff::logger.warning(__VA_ARGS__)
 #else
 #define HOTSTUFF_LOG_WARN(...) ((void)0)
+#endif
+
+#ifdef HOTSTUFF_ENABLE_LOG_PROTO
+#define HOTSTUFF_LOG_PROTO(...) hotstuff::logger.proto(__VA_ARGS__)
+#else
+#define HOTSTUFF_LOG_PROTO(...) ((void)0)
 #endif
 
 #define HOTSTUFF_LOG_ERROR(...) hotstuff::logger.error(__VA_ARGS__)
