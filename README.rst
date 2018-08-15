@@ -38,6 +38,11 @@ section may be incomplete and subject to changes.
 
 ::
 
+    # clone from the repo
+    git clone https://github.com/Determinant/hot-stuff.git
+    cd hot-stuff/
+    git submodule update --recursive
+
     # ensure openssl and libevent are installed on your machine
     cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED=ON -DHOTSTUFF_PROTO_LOG=ON
     make
