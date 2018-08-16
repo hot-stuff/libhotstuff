@@ -32,13 +32,18 @@ class HotStuffCore {
     std::unordered_map<block_t, promise_t> qc_waiting;
     promise_t propose_waiting;
     promise_t receive_proposal_waiting;
+    promise_t bqc_update_waiting;
+    /* == feature switches == */
+    /** always vote negatively, useful for some PaceMakers */
+    bool neg_vote;
 
     block_t get_delivered_blk(const uint256_t &blk_hash);
     void sanity_check_delivered(const block_t &blk);
     void check_commit(const block_t &_bqc);
     bool update(const uint256_t &bqc_hash);
+    void on_bqc_update();
     void on_qc_finish(const block_t &blk);
-    void on_propose_(const block_t &blk);
+    void on_propose_(const Proposal &prop);
     void on_receive_proposal_(const Proposal &prop);
 
     protected:
@@ -127,9 +132,11 @@ class HotStuffCore {
     /** Get a promise resolved when the block gets a QC. */
     promise_t async_qc_finish(const block_t &blk);
     /** Get a promise resolved when a new block is proposed. */
-    promise_t async_wait_propose();
+    promise_t async_wait_proposal();
     /** Get a promise resolved when a new proposal is received. */
     promise_t async_wait_receive_proposal();
+    /** Get a promise resolved when bqc is updated. */
+    promise_t async_bqc_update();
 
     /* Other useful functions */
     block_t get_genesis() { return b0; }
@@ -137,6 +144,7 @@ class HotStuffCore {
     ReplicaID get_id() const { return id; }
     const std::set<block_t, BlockHeightCmp> get_tails() const { return tails; }
     operator std::string () const;
+    void set_neg_vote(bool _neg_vote) { neg_vote = _neg_vote; }
 };
 
 /** Abstraction for proposal messages. */
@@ -154,7 +162,7 @@ struct Proposal: public Serializable {
     Proposal(): blk(nullptr), hsc(nullptr) {}
     Proposal(ReplicaID proposer,
             const uint256_t &bqc_hash,
-            block_t &blk,
+            const block_t &blk,
             HotStuffCore *hsc):
         proposer(proposer),
         bqc_hash(bqc_hash),

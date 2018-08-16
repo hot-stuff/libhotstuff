@@ -417,7 +417,7 @@ void HotStuffBase::do_broadcast_proposal(const Proposal &prop) {
 }
 
 void HotStuffBase::do_vote(ReplicaID last_proposer, const Vote &vote) {
-    pmaker->next_proposer(last_proposer)
+    pmaker->beat_resp(last_proposer)
             .then([this, vote](ReplicaID proposer) {
         if (proposer == get_id())
             on_receive_vote(vote);

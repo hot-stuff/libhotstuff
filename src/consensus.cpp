@@ -21,6 +21,7 @@ HotStuffCore::HotStuffCore(ReplicaID id,
         vheight(0),
         priv_key(std::move(priv_key)),
         tails{bqc},
+        neg_vote(false),
         id(id),
         storage(new EntityStorage()) {
     storage->add_blk(b0);
@@ -103,7 +104,10 @@ bool HotStuffCore::update(const uint256_t &bqc_hash) {
     if (_bqc->qc_ref == nullptr) return false;
     check_commit(_bqc);
     if (_bqc->qc_ref->height > bqc->qc_ref->height)
+    {
         bqc = _bqc;
+        on_bqc_update();
+    }
     return true;
 }
 
@@ -141,7 +145,7 @@ void HotStuffCore::on_propose(const std::vector<command_t> &cmds,
     on_receive_vote(
         Vote(id, bqc->get_hash(), bnew_hash,
             create_part_cert(*priv_key, bnew_hash), this));
-    on_propose_(bnew);
+    on_propose_(prop);
     /* boradcast to other replicas */
     do_broadcast_proposal(prop);
 }
@@ -173,7 +177,7 @@ void HotStuffCore::on_receive_proposal(const Proposal &prop) {
         Vote(id,
             bqc->get_hash(),
             bnew->get_hash(),
-            (opinion ?
+            ((opinion && !neg_vote) ?
                 create_part_cert(*priv_key, bnew->get_hash()) :
                 nullptr),
             this));
@@ -262,9 +266,9 @@ void HotStuffCore::on_qc_finish(const block_t &blk) {
     }
 }
 
-promise_t HotStuffCore::async_wait_propose() {
-    return propose_waiting.then([](const block_t &blk) {
-        return blk;
+promise_t HotStuffCore::async_wait_proposal() {
+    return propose_waiting.then([](const Proposal &prop) {
+        return prop;
     });
 }
 
@@ -274,16 +278,28 @@ promise_t HotStuffCore::async_wait_receive_proposal() {
     });
 }
 
-void HotStuffCore::on_propose_(const block_t &blk) {
+promise_t HotStuffCore::async_bqc_update() {
+    return bqc_update_waiting.then([bqc=this->bqc]() {
+        return bqc;
+    });
+}
+
+void HotStuffCore::on_propose_(const Proposal &prop) {
     auto t = std::move(propose_waiting);
     propose_waiting = promise_t();
-    t.resolve(blk);
+    t.resolve(prop);
 }
 
 void HotStuffCore::on_receive_proposal_(const Proposal &prop) {
     auto t = std::move(receive_proposal_waiting);
     receive_proposal_waiting = promise_t();
     t.resolve(prop);
+}
+
+void HotStuffCore::on_bqc_update() {
+    auto t = std::move(bqc_update_waiting);
+    bqc_update_waiting = promise_t();
+    t.resolve();
 }
 
 HotStuffCore::operator std::string () const {
