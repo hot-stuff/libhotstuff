@@ -269,6 +269,7 @@ class PMStickyProposer: virtual public PaceMaker {
             {
                 HOTSTUFF_LOG_PROTO("proposer misbehave");
                 to_candidate(); /* proposer misbehave */
+                return;
             }
             HOTSTUFF_LOG_PROTO("proposer emits new QC");
             last_proposed = prop.blk;
