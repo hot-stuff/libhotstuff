@@ -285,7 +285,7 @@ promise_t HotStuffCore::async_wait_receive_proposal() {
 }
 
 promise_t HotStuffCore::async_bqc_update() {
-    return bqc_update_waiting.then([bqc=this->bqc]() {
+    return bqc_update_waiting.then([this]() {
         return bqc;
     });
 }
