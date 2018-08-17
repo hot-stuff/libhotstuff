@@ -145,7 +145,8 @@ void HotStuffCore::on_propose(const std::vector<command_t> &cmds,
     Proposal prop(id, bqc->get_hash(), bnew, nullptr);
     LOG_PROTO("propose %s", std::string(*bnew).c_str());
     /* self-vote */
-    assert(bnew->height > vheight);
+    if (bnew->height <= vheight)
+        throw std::runtime_error("new block should be higher than vheight");
     vheight = bnew->height;
     on_receive_vote(
         Vote(id, bqc->get_hash(), bnew_hash,

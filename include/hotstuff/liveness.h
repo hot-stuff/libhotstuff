@@ -46,13 +46,14 @@ class PMAllParents: public virtual PaceMaker {
     
     void reg_bqc_update() {
         hsc->async_bqc_update().then([this](const block_t &bqc) {
+            const auto &pref = bqc->get_qc_ref();
             for (const auto &blk: hsc->get_tails())
             {
                 block_t b;
                 for (b = blk;
-                    b->get_height() > bqc->get_height();
+                    b->get_height() > pref->get_height();
                     b = b->get_parents()[0]);
-                if (b == bqc && blk->get_height() > bqc_tail->get_height())
+                if (b == pref && blk->get_height() > bqc_tail->get_height())
                     bqc_tail = blk;
             }
             reg_bqc_update();
@@ -61,16 +62,21 @@ class PMAllParents: public virtual PaceMaker {
 
     void reg_proposal() {
         hsc->async_wait_proposal().then([this](const Proposal &prop) {
-            if (prop.blk->get_parents()[0] == bqc_tail)
-                bqc_tail = prop.blk;
+            bqc_tail = prop.blk;
             reg_proposal();
         });
     }
 
     void reg_receive_proposal() {
         hsc->async_wait_receive_proposal().then([this](const Proposal &prop) {
-            if (prop.blk->get_parents()[0] == bqc_tail)
-                bqc_tail = prop.blk;
+            const auto &pref = hsc->get_bqc()->get_qc_ref();
+            const auto &blk = prop.blk;
+            block_t b;
+            for (b = blk;
+                b->get_height() > pref->get_height();
+                b = b->get_parents()[0]);
+            if (b == pref && blk->get_height() > bqc_tail->get_height())
+                bqc_tail = blk;
             reg_receive_proposal();
         });
     }

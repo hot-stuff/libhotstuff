@@ -139,7 +139,8 @@ class HotStuffCore {
     promise_t async_bqc_update();
 
     /* Other useful functions */
-    block_t get_genesis() { return b0; }
+    const block_t &get_genesis() { return b0; }
+    const block_t &get_bqc() { return bqc; }
     const ReplicaConfig &get_config() { return config; }
     ReplicaID get_id() const { return id; }
     const std::set<block_t, BlockHeightCmp> get_tails() const { return tails; }
