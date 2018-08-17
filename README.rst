@@ -47,5 +47,5 @@ section may be incomplete and subject to changes.
     cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED=ON -DHOTSTUFF_PROTO_LOG=ON
     make
 
-    # start 4 demo replicas with ./run_replicas.sh
-    # start the demo client with ./run_client.sh
+    # start 4 demo replicas with scripts/run_replicas.sh
+    # start the demo client with scripts/run_client.sh
