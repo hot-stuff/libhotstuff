@@ -175,7 +175,7 @@ int main(int argc, char **argv) {
         auto parent_limit = opt_parent_limit->get();
         hotstuff::pacemaker_bt pmaker;
         if (opt_pace_maker->get() == "sticky")
-            pmaker = new hotstuff::PaceMakerSticky(parent_limit, 5, ec);
+            pmaker = new hotstuff::PaceMakerSticky(parent_limit, 0.5, ec);
         else
             pmaker = new hotstuff::PaceMakerDummyFixed(1, parent_limit);
 

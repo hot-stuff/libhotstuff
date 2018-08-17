@@ -75,6 +75,7 @@ void HotStuffCore::check_commit(const block_t &_blk) {
     /* decided blk could possible be incomplete due to pruning */
     if (blk->decision) return;
     block_t p = blk->parents[0];
+    if (p->decision) return;
     /* commit requires direct parent */
     if (p != blk->qc_ref) return;
     /* otherwise commit */
@@ -85,7 +86,9 @@ void HotStuffCore::check_commit(const block_t &_blk) {
         commit_queue.push_back(b);
     }
     if (b != bexec)
-        throw std::runtime_error("safety breached :(");
+        throw std::runtime_error("safety breached :( " +
+                                std::string(*p) + " " +
+                                std::string(*bexec));
     for (auto it = commit_queue.rbegin(); it != commit_queue.rend(); it++)
     {
         const block_t &blk = *it;
@@ -142,6 +145,8 @@ void HotStuffCore::on_propose(const std::vector<command_t> &cmds,
     Proposal prop(id, bqc->get_hash(), bnew, nullptr);
     LOG_PROTO("propose %s", std::string(*bnew).c_str());
     /* self-vote */
+    assert(bnew->height > vheight);
+    vheight = bnew->height;
     on_receive_vote(
         Vote(id, bqc->get_hash(), bnew_hash,
             create_part_cert(*priv_key, bnew_hash), this));
@@ -306,7 +311,8 @@ HotStuffCore::operator std::string () const {
     DataStream s;
     s << "<hotstuff "
       << "bqc=" << get_hex10(bqc->get_hash()) << " "
-      << "bexec=" << get_hex10(bqc->get_hash()) << " "
+      << "bqc.rheight=" << std::to_string(bqc->qc_ref->height) << " "
+      << "bexec=" << get_hex10(bexec->get_hash()) << " "
       << "vheight=" << std::to_string(vheight) << " "
       << "tails=" << std::to_string(tails.size()) << ">";
     return std::move(s);

@@ -52,8 +52,8 @@ class PMAllParents: public virtual PaceMaker {
                 for (b = blk;
                     b->get_height() > bqc->get_height();
                     b = b->get_parents()[0]);
-                if (b == bqc && b->get_height() > bqc_tail->get_height())
-                    bqc_tail = b;
+                if (b == bqc && blk->get_height() > bqc_tail->get_height())
+                    bqc_tail = blk;
             }
             reg_bqc_update();
         });
