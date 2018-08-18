@@ -38,14 +38,15 @@ section may be incomplete and subject to changes.
 
 ::
 
-    # clone from the repo
+    # install from the repo
     git clone https://github.com/Determinant/hot-stuff.git
     cd hot-stuff/
+    git submodule init
     git submodule update --recursive
 
     # ensure openssl and libevent are installed on your machine
     cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED=ON -DHOTSTUFF_PROTO_LOG=ON
     make
 
-    # start 4 demo replicas with scripts/run_replicas.sh
-    # start the demo client with scripts/run_client.sh
+    # start 4 demo replicas with scripts/run_demo.sh
+    # start the demo client with scripts/run_demo_client.sh

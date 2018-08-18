@@ -4,7 +4,7 @@ proj_server_bin="hotstuff-app"
 proj_server_path="/home/ted/hot-stuff/$proj_server_bin"
 proj_conf_name="hotstuff.conf"
 
-peer_list="./nodes.txt"     # the list of peers (without the controller)
+peer_list="./nodes.txt"     # the list of nodes
 conf_src="./hotstuff.gen.conf"
 server_map="./server_map.txt"         # optional mapping from node ip to server ip
 template_dir="template"     # the dir that keeps the content shared among all nodes
@@ -211,7 +211,7 @@ function start_all {
     cp "$server_map" "$workdir/server_map.txt"
     get_node_info "$workdir/peer_list.txt"
     get_server_map "$workdir/server_map.txt"
-    echo "generating configuration file using $peer_list"
+    echo "copying configuration file"
     cp "$conf_src" "$tmpldir/$proj_conf_name"
     for rid in "${!nodes[@]}"; do
         local node_tmpldir="$workdir/$rid"
