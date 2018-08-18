@@ -12,6 +12,8 @@ if __name__ == "__main__":
     parser.add_argument('--cport', type=int, default=20000)
     parser.add_argument('--keygen', type=str, default='./hotstuff-keygen')
     parser.add_argument('--nodes', type=str, default='nodes.txt')
+    parser.add_argument('--block-size', type=int, default=1)
+    parser.add_argument('--pace-maker', type=str, default='dummy')
     args = parser.parse_args()
 
 
@@ -33,6 +35,10 @@ if __name__ == "__main__":
     p = subprocess.Popen([keygen_bin, '--num', str(len(replicas))],
                         stdout=subprocess.PIPE, stderr=open(os.devnull, 'w'))
     keys = [[t[4:] for t in l.decode('ascii').split()] for l in p.stdout]
+    if not (args.block_size is None):
+        main_conf.write("block-size = {}\n".format(args.block_size))
+    if not (args.pace_maker is None):
+        main_conf.write("pace-maker = {}\n".format(args.pace_maker))
     for r in zip(replicas, keys, itertools.count(0)):
         main_conf.write("replica = {}, {}\n".format(r[0], r[1][0]))
         r_conf_name = "{}-sec{}.conf".format(prefix, r[2])
