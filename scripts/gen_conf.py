@@ -20,7 +20,7 @@ if __name__ == "__main__":
     if args.ips is None:
         ips = ['127.0.0.1']
     else:
-        ips = [l.strip() for l in open(args.iplist, 'r').readlines()]
+        ips = [l.strip() for l in open(args.ips, 'r').readlines()]
     prefix = args.prefix
     iter = args.iter
     base_pport = args.pport
