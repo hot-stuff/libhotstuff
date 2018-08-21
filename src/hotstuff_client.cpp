@@ -9,22 +9,19 @@
 #include "hotstuff/client.h"
 
 using salticidae::Config;
-using salticidae::ElapsedTime;
-using salticidae::trim_all;
-using salticidae::split;
 using salticidae::MsgNetwork;
 
 using hotstuff::ReplicaID;
 using hotstuff::NetAddr;
 using hotstuff::EventContext;
-using hotstuff::uint256_t;
 using hotstuff::MsgReqCmd;
 using hotstuff::MsgRespCmd;
 using hotstuff::CommandDummy;
-using hotstuff::command_t;
 using hotstuff::Finality;
 using hotstuff::HotStuffError;
+using hotstuff::uint256_t;
 using hotstuff::opcode_t;
+using hotstuff::command_t;
 
 EventContext eb;
 ReplicaID proposer;
@@ -34,7 +31,7 @@ int max_iter_num;
 struct Request {
     ReplicaID rid;
     command_t cmd;
-    ElapsedTime et;
+    salticidae::ElapsedTime et;
     Request(ReplicaID rid, const command_t &cmd):
         rid(rid), cmd(cmd) { et.start(); }
 };
@@ -56,8 +53,10 @@ void try_send() {
     {
         auto cmd = CommandDummy::make_cmd();
         mn.send_msg(MsgReqCmd(*cmd), *conns.at(proposer));
+#ifndef HOTSTUFF_ENABLE_BENCHMARK
         HOTSTUFF_LOG_INFO("send new cmd %.10s",
                             get_hex(cmd->get_hash()).c_str());
+#endif
         waiting.insert(std::make_pair(
             cmd->get_hash(), Request(proposer, cmd)));
         if (max_iter_num > 0)
@@ -70,6 +69,9 @@ void client_resp_cmd_handler(MsgRespCmd &&msg, MsgNetwork<opcode_t>::Conn &) {
     HOTSTUFF_LOG_DEBUG("got %s", std::string(msg.fin).c_str());
     const uint256_t &cmd_hash = fin.cmd_hash;
     auto it = waiting.find(cmd_hash);
+    auto &et = it->second.et;
+    if (it == waiting.end()) return;
+    et.stop();
     if (fin.rid != proposer)
     {
         HOTSTUFF_LOG_INFO("reconnect to the new proposer");
@@ -79,20 +81,27 @@ void client_resp_cmd_handler(MsgRespCmd &&msg, MsgNetwork<opcode_t>::Conn &) {
     {
         mn.send_msg(MsgReqCmd(*(waiting.find(cmd_hash)->second.cmd)),
                     *conns.at(proposer));
+#ifndef HOTSTUFF_ENABLE_BENCHMARK
         HOTSTUFF_LOG_INFO("resend cmd %.10s",
                             get_hex(cmd_hash).c_str());
-        it->second.et.start();
+#endif
+        et.start();
         it->second.rid = proposer;
         return;
     }
-    HOTSTUFF_LOG_INFO("got %s", std::string(fin).c_str());
-    if (it == waiting.end()) return;
+#ifndef HOTSTUFF_ENABLE_BENCHMARK
+    HOTSTUFF_LOG_INFO("got %s, wall: %.3f, cpu: %.3f",
+                        std::string(fin).c_str(),
+                        et.elapsed_sec, et.cpu_elapsed_sec);
+#else
+    HOTSTUFF_LOG_INFO("%.6f %.6f", et.elapsed_sec, et.cpu_elapsed_sec);
+#endif
     waiting.erase(it);
     try_send();
 }
 
 std::pair<std::string, std::string> split_ip_port_cport(const std::string &s) {
-    auto ret = trim_all(split(s, ";"));
+    auto ret = salticidae::trim_all(salticidae::split(s, ";"));
     return std::make_pair(ret[0], ret[1]);
 }
 
@@ -117,7 +126,7 @@ int main(int argc, char **argv) {
         std::vector<std::pair<std::string, std::string>> raw;
         for (const auto &s: opt_replicas->get())
         {
-            auto res = trim_all(split(s, ","));
+            auto res = salticidae::trim_all(salticidae::split(s, ","));
             if (res.size() != 2)
                 throw HotStuffError("format error");
             raw.push_back(std::make_pair(res[0], res[1]));
