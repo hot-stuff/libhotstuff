@@ -41,8 +41,7 @@ section may be incomplete and subject to changes.
     # install from the repo
     git clone https://github.com/Determinant/hot-stuff.git
     cd hot-stuff/
-    git submodule init
-    git submodule update --recursive
+    git submodule update --init --recursive
 
     # ensure openssl and libevent are installed on your machine
     cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED=ON -DHOTSTUFF_PROTO_LOG=ON
