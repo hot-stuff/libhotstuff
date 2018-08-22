@@ -28,8 +28,8 @@ EventContext eb;
 ReplicaID proposer;
 size_t max_async_num;
 int max_iter_num;
-uint64_t cnd_stride;
-uint64_t cnt;
+uint32_t cid;
+uint32_t cnt = 0;
 
 struct Request {
     ReplicaID rid;
@@ -54,8 +54,7 @@ void set_proposer(ReplicaID rid) {
 void try_send() {
     while (waiting.size() < max_async_num && max_iter_num)
     {
-        auto cmd = new CommandDummy(cnt);
-        cnt += cnd_stride;
+        auto cmd = new CommandDummy(cid, cnt++);
         mn.send_msg(MsgReqCmd(*cmd), *conns.at(proposer));
 #ifndef HOTSTUFF_ENABLE_BENCHMARK
         HOTSTUFF_LOG_INFO("send new cmd %.10s",
@@ -110,27 +109,23 @@ std::pair<std::string, std::string> split_ip_port_cport(const std::string &s) {
 }
 
 int main(int argc, char **argv) {
-    cnt = std::random_device()();
-    HOTSTUFF_LOG_INFO("init cnt = %lu", cnt);
-
     Config config("hotstuff.conf");
     auto opt_idx = Config::OptValInt::create(0);
     auto opt_replicas = Config::OptValStrVec::create();
     auto opt_max_iter_num = Config::OptValInt::create(100);
     auto opt_max_async_num = Config::OptValInt::create(10);
-    auto opt_cnt_stride = Config::OptValInt::create(1000);
+    auto opt_cid = Config::OptValInt::create(-1);
 
     mn.reg_handler(client_resp_cmd_handler);
 
     try {
         config.add_opt("idx", opt_idx, Config::SET_VAL);
+        config.add_opt("cid", opt_cid, Config::SET_VAL);
         config.add_opt("replica", opt_replicas, Config::APPEND);
         config.add_opt("iter", opt_max_iter_num, Config::SET_VAL);
         config.add_opt("max-async", opt_max_async_num, Config::SET_VAL);
-        config.add_opt("cnt-stride", opt_cnt_stride, Config::SET_VAL);
         config.parse(argc, argv);
         auto idx = opt_idx->get();
-        cnd_stride = opt_cnt_stride->get();
         max_iter_num = opt_max_iter_num->get();
         max_async_num = opt_max_async_num->get();
         std::vector<std::pair<std::string, std::string>> raw;
@@ -144,6 +139,7 @@ int main(int argc, char **argv) {
 
         if (!(0 <= idx && (size_t)idx < raw.size() && raw.size() > 0))
             throw std::invalid_argument("out of range");
+        cid = opt_cid->get() != -1 ? opt_cid->get() : idx;
         for (const auto &p: raw)
         {
             auto _p = split_ip_port_cport(p.first);
