@@ -117,6 +117,8 @@ class PMWaitQC: public virtual PaceMaker {
     std::queue<promise_t> pending_beats;
     block_t last_proposed;
     bool locked;
+    promise_t pm_qc_finish;
+    promise_t pm_wait_propose;
 
     protected:
     void schedule_next() {
@@ -124,19 +126,23 @@ class PMWaitQC: public virtual PaceMaker {
         {
             auto pm = pending_beats.front();
             pending_beats.pop();
-            hsc->async_qc_finish(last_proposed).then([this, pm]() {
-                pm.resolve(get_proposer());
-            });
+            pm_qc_finish.reject();
+            (pm_qc_finish = hsc->async_qc_finish(last_proposed))
+                .then([this, pm]() {
+                    pm.resolve(get_proposer());
+                });
             locked = true;
         }
     }
 
     void update_last_proposed() {
-        hsc->async_wait_proposal().then([this](const Proposal &prop) {
-            update_last_proposed();
+        pm_wait_propose.reject();
+        (pm_wait_propose = hsc->async_wait_proposal()).then(
+                [this](const Proposal &prop) {
             last_proposed = prop.blk;
             locked = false;
             schedule_next();
+            update_last_proposed();
         });
     }
 
@@ -155,7 +161,7 @@ class PMWaitQC: public virtual PaceMaker {
         promise_t pm;
         pending_beats.push(pm);
         schedule_next();
-        return pm;
+        return std::move(pm);
     }
 
     promise_t beat_resp(ReplicaID last_proposer) override {
@@ -245,7 +251,7 @@ class PMStickyProposer: virtual public PaceMaker {
     void reset_qc_timer() {
         timer.del();
         timer.add_with_timeout(qc_timeout);
-        HOTSTUFF_LOG_PROTO("QC timer reset");
+        HOTSTUFF_LOG_INFO("QC timer reset");
     }
 
     void clear_promises() {
@@ -273,11 +279,11 @@ class PMStickyProposer: virtual public PaceMaker {
             auto &qc_ref = prop.blk->get_qc_ref();
             if (last_proposed && qc_ref != last_proposed)
             {
-                HOTSTUFF_LOG_PROTO("proposer misbehave");
+                HOTSTUFF_LOG_INFO("proposer misbehave");
                 to_candidate(); /* proposer misbehave */
                 return;
             }
-            HOTSTUFF_LOG_PROTO("proposer emits new QC");
+            HOTSTUFF_LOG_INFO("proposer emits new QC");
             last_proposed = prop.blk;
             reset_qc_timer();
         }
@@ -332,7 +338,7 @@ class PMStickyProposer: virtual public PaceMaker {
         (pm_wait_propose = hsc->async_wait_proposal()).then([this](const Proposal &prop) {
             const auto &blk = prop.blk;
             (pm_qc_finish = hsc->async_qc_finish(blk)).then([this, blk]() {
-                HOTSTUFF_LOG_PROTO("collected QC for %s", std::string(*blk).c_str());
+                HOTSTUFF_LOG_INFO("collected QC for %s", std::string(*blk).c_str());
                 /* managed to collect a QC */
                 to_proposer();
                 propose_elect_block();
@@ -341,7 +347,7 @@ class PMStickyProposer: virtual public PaceMaker {
         double t = salticidae::gen_rand_timeout(candidate_timeout);
         timer.del();
         timer.add_with_timeout(t);
-        HOTSTUFF_LOG_PROTO("candidate next try in %.2fs", t);
+        HOTSTUFF_LOG_INFO("candidate next try in %.2fs", t);
         propose_elect_block();
     }
 
@@ -367,7 +373,7 @@ class PMStickyProposer: virtual public PaceMaker {
     /* role transitions */
 
     void to_follower(ReplicaID new_proposer) {
-        HOTSTUFF_LOG_PROTO("new role: follower");
+        HOTSTUFF_LOG_INFO("new role: follower");
         clear_promises();
         role = FOLLOWER;
         proposer = new_proposer;
@@ -387,7 +393,7 @@ class PMStickyProposer: virtual public PaceMaker {
     }
 
     void to_proposer() {
-        HOTSTUFF_LOG_PROTO("new role: proposer");
+        HOTSTUFF_LOG_INFO("new role: proposer");
         clear_promises();
         role = PROPOSER;
         proposer = hsc->get_id();
@@ -402,7 +408,7 @@ class PMStickyProposer: virtual public PaceMaker {
     }
 
     void to_candidate() {
-        HOTSTUFF_LOG_PROTO("new role: candidate");
+        HOTSTUFF_LOG_INFO("new role: candidate");
         clear_promises();
         role = CANDIDATE;
         proposer = hsc->get_id();
