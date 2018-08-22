@@ -1,4 +1,5 @@
 #include <cassert>
+#include <random>
 #include "salticidae/type.h"
 #include "salticidae/netaddr.h"
 #include "salticidae/network.h"
@@ -27,6 +28,8 @@ EventContext eb;
 ReplicaID proposer;
 size_t max_async_num;
 int max_iter_num;
+uint64_t cnd_stride;
+uint64_t cnt;
 
 struct Request {
     ReplicaID rid;
@@ -51,7 +54,8 @@ void set_proposer(ReplicaID rid) {
 void try_send() {
     while (waiting.size() < max_async_num && max_iter_num)
     {
-        auto cmd = CommandDummy::make_cmd();
+        auto cmd = new CommandDummy(cnt);
+        cnt += cnd_stride;
         mn.send_msg(MsgReqCmd(*cmd), *conns.at(proposer));
 #ifndef HOTSTUFF_ENABLE_BENCHMARK
         HOTSTUFF_LOG_INFO("send new cmd %.10s",
@@ -106,11 +110,15 @@ std::pair<std::string, std::string> split_ip_port_cport(const std::string &s) {
 }
 
 int main(int argc, char **argv) {
+    cnt = std::random_device()();
+    HOTSTUFF_LOG_INFO("init cnt = %lu", cnt);
+
     Config config("hotstuff.conf");
     auto opt_idx = Config::OptValInt::create(0);
     auto opt_replicas = Config::OptValStrVec::create();
     auto opt_max_iter_num = Config::OptValInt::create(100);
     auto opt_max_async_num = Config::OptValInt::create(10);
+    auto opt_cnt_stride = Config::OptValInt::create(1000);
 
     mn.reg_handler(client_resp_cmd_handler);
 
@@ -119,8 +127,10 @@ int main(int argc, char **argv) {
         config.add_opt("replica", opt_replicas, Config::APPEND);
         config.add_opt("iter", opt_max_iter_num, Config::SET_VAL);
         config.add_opt("max-async", opt_max_async_num, Config::SET_VAL);
+        config.add_opt("cnt-stride", opt_cnt_stride, Config::SET_VAL);
         config.parse(argc, argv);
         auto idx = opt_idx->get();
+        cnd_stride = opt_cnt_stride->get();
         max_iter_num = opt_max_iter_num->get();
         max_async_num = opt_max_async_num->get();
         std::vector<std::pair<std::string, std::string>> raw;

@@ -2,8 +2,6 @@
 
 namespace hotstuff {
 
-uint64_t CommandDummy::cnt = 0;
-
 const opcode_t MsgReqCmd::opcode;
 MsgReqCmd::MsgReqCmd(const Command &cmd) { serialized << cmd; }
 void MsgReqCmd::postponed_parse(HotStuffCore *hsc) {
