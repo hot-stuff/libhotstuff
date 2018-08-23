@@ -48,25 +48,22 @@ using hotstuff::promise_t;
 
 using HotStuff = hotstuff::HotStuffSecp256k1;
 
-#define LOG_INFO HOTSTUFF_LOG_INFO
-#define LOG_DEBUG HOTSTUFF_LOG_DEBUG
-#define LOG_WARN HOTSTUFF_LOG_WARN
-#define LOG_ERROR HOTSTUFF_LOG_ERROR
-
 class HotStuffApp: public HotStuff {
     double stat_period;
+    double impeach_timeout;
     EventContext ec;
     /** Network messaging between a replica and its client. */
     ClientNetwork<opcode_t> cn;
     /** Timer object to schedule a periodic printing of system statistics */
     Event ev_stat_timer;
+    /** Timer object to monitor the progress for simple impeachment */
+    Event impeach_timer;
     /** The listen address for client RPC */
     NetAddr clisten_addr;
 
     using Conn = ClientNetwork<opcode_t>::Conn;
 
     void client_request_cmd_handler(MsgReqCmd &&, Conn &);
-    void print_stat_cb(evutil_socket_t, short);
 
     command_t parse_cmd(DataStream &s) override {
         auto cmd = new CommandDummy();
@@ -74,15 +71,22 @@ class HotStuffApp: public HotStuff {
         return cmd;
     }
 
+    void reset_imp_timer() {
+        impeach_timer.del();
+        impeach_timer.add_with_timeout(impeach_timeout);
+    }
+
     void state_machine_execute(const Finality &fin) override {
+        reset_imp_timer();
 #ifndef HOTSTUFF_ENABLE_BENCHMARK
-        LOG_INFO("replicated %s", std::string(fin).c_str());
+        HOTSTUFF_LOG_INFO("replicated %s", std::string(fin).c_str());
 #endif
     }
 
     public:
     HotStuffApp(uint32_t blk_size,
                 double stat_period,
+                double impeach_timeout,
                 ReplicaID idx,
                 const bytearray_t &raw_privkey,
                 NetAddr plisten_addr,
@@ -126,6 +130,7 @@ int main(int argc, char **argv) {
     auto opt_pace_maker = Config::OptValStr::create("dummy");
     auto opt_fixed_proposer = Config::OptValInt::create(1);
     auto opt_qc_timeout = Config::OptValDouble::create(0.5);
+    auto opt_imp_timeout = Config::OptValDouble::create(11);
 
     config.add_opt("block-size", opt_blk_size, Config::SET_VAL);
     config.add_opt("parent-limit", opt_parent_limit, Config::SET_VAL);
@@ -137,6 +142,7 @@ int main(int argc, char **argv) {
     config.add_opt("pace-maker", opt_pace_maker, Config::SET_VAL, 'p', "specify pace maker (sticky, dummy)");
     config.add_opt("proposer", opt_fixed_proposer, Config::SET_VAL, 'l', "set the fixed proposer (for dummy)");
     config.add_opt("qc-timeout", opt_qc_timeout, Config::SET_VAL, 't', "set QC timeout (for sticky)");
+    config.add_opt("imp-timeout", opt_imp_timeout, Config::SET_VAL, 'u', "set impeachment timeout (for sticky)");
     config.add_opt("help", opt_help, Config::SWITCH_ON, 'h', "show this help info");
 
     EventContext ec;
@@ -185,6 +191,7 @@ int main(int argc, char **argv) {
 
         papp = new HotStuffApp(opt_blk_size->get(),
                             opt_stat_period->get(),
+                            opt_imp_timeout->get(),
                             idx,
                             hotstuff::from_hex(opt_privkey->get()),
                             plisten_addr,
@@ -209,6 +216,7 @@ int main(int argc, char **argv) {
 
 HotStuffApp::HotStuffApp(uint32_t blk_size,
                         double stat_period,
+                        double impeach_timeout,
                         ReplicaID idx,
                         const bytearray_t &raw_privkey,
                         NetAddr plisten_addr,
@@ -218,6 +226,7 @@ HotStuffApp::HotStuffApp(uint32_t blk_size,
     HotStuff(blk_size, idx, raw_privkey,
             plisten_addr, std::move(pmaker), ec),
     stat_period(stat_period),
+    impeach_timeout(impeach_timeout),
     ec(ec),
     cn(ec),
     clisten_addr(clisten_addr) {
@@ -231,28 +240,29 @@ void HotStuffApp::client_request_cmd_handler(MsgReqCmd &&msg, Conn &conn) {
     msg.postponed_parse(this);
     auto cmd = msg.cmd;
     std::vector<promise_t> pms;
-    LOG_DEBUG("processing %s", std::string(*cmd).c_str());
+    HOTSTUFF_LOG_DEBUG("processing %s", std::string(*cmd).c_str());
     exec_command(cmd).then([this, addr](Finality fin) {
         cn.send_msg(MsgRespCmd(fin), addr);
     });
 }
 
 void HotStuffApp::start() {
-    ev_stat_timer = Event(ec, -1, 0,
-            std::bind(&HotStuffApp::print_stat_cb, this, _1, _2));
+    ev_stat_timer = Event(ec, -1, 0, [this](int, short) {
+        HotStuff::print_stat();
+        //HotStuffCore::prune(100);
+        ev_stat_timer.add_with_timeout(stat_period);
+    });
     ev_stat_timer.add_with_timeout(stat_period);
-    LOG_INFO("** starting the system with parameters **");
-    LOG_INFO("blk_size = %lu", blk_size);
-    LOG_INFO("conns = %lu", HotStuff::size());
-    LOG_INFO("** starting the event loop...");
+    impeach_timer = Event(ec, -1, 0, [this](int, short) {
+        get_pace_maker().impeach();
+        reset_imp_timer();
+    });
+    impeach_timer.add_with_timeout(impeach_timeout);
+    HOTSTUFF_LOG_INFO("** starting the system with parameters **");
+    HOTSTUFF_LOG_INFO("blk_size = %lu", blk_size);
+    HOTSTUFF_LOG_INFO("conns = %lu", HotStuff::size());
+    HOTSTUFF_LOG_INFO("** starting the event loop...");
     HotStuff::start();
     /* enter the event main loop */
     ec.dispatch();
-}
-
-
-void HotStuffApp::print_stat_cb(evutil_socket_t, short) {
-    HotStuff::print_stat();
-    //HotStuffCore::prune(100);
-    ev_stat_timer.add_with_timeout(stat_period);
 }

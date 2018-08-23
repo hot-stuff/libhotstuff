@@ -32,6 +32,8 @@ class PaceMaker {
      * to vote for a block. The promise is resolved with the next proposer's ID
      * */
     virtual promise_t beat_resp(ReplicaID last_proposer) = 0;
+    /** Impeach the current proposer. */
+    virtual void impeach() {}
 };
 
 using pacemaker_bt = BoxObj<PaceMaker>;
@@ -285,7 +287,7 @@ class PMStickyProposer: virtual public PaceMaker {
             }
             HOTSTUFF_LOG_INFO("proposer emits new QC");
             last_proposed = prop.blk;
-            reset_qc_timer();
+            //reset_qc_timer();
         }
         reg_follower_receive_proposal();
     }
@@ -300,7 +302,7 @@ class PMStickyProposer: virtual public PaceMaker {
             pm_qc_finish.reject();
             (pm_qc_finish = hsc->async_qc_finish(last_proposed))
                 .then([this, pm]() {
-                    reset_qc_timer();
+                    timer.del();
                     pm.resolve(proposer);
                 });
             locked = true;
@@ -315,6 +317,7 @@ class PMStickyProposer: virtual public PaceMaker {
     }
 
     void proposer_propose(const Proposal &prop) {
+        reset_qc_timer();
         last_proposed = prop.blk;
         locked = false;
         proposer_schedule_next();
@@ -379,10 +382,11 @@ class PMStickyProposer: virtual public PaceMaker {
         proposer = new_proposer;
         last_proposed = nullptr;
         hsc->set_neg_vote(false);
-        timer = Event(ec, -1, 0, [this](int, short) {
-            /* unable to get a QC in time */
-            to_candidate();
-        });
+        timer.clear();
+        //timer = Event(ec, -1, 0, [this](int, short) {
+        //    /* unable to get a QC in time */
+        //    to_candidate();
+        //});
         /* redirect all pending cmds to the new proposer */
         while (!pending_beats.empty())
         {
@@ -404,7 +408,6 @@ class PMStickyProposer: virtual public PaceMaker {
             to_candidate();
         });
         proposer_propose(Proposal(-1, uint256_t(), hsc->get_genesis(), nullptr));
-        reset_qc_timer();
     }
 
     void to_candidate() {
@@ -420,6 +423,16 @@ class PMStickyProposer: virtual public PaceMaker {
         candidate_timeout = qc_timeout;
         reg_candidate_receive_proposal();
         candidate_qc_timeout();
+    }
+
+    protected:
+    void impeach() override {
+        if (role == CANDIDATE) return;
+        timer = Event(ec, -1, 0, [this](int, short) {
+            to_candidate();
+        });
+        timer.add_with_timeout(0);
+        HOTSTUFF_LOG_INFO("schedule to impeach the proposer");
     }
 
     public:

@@ -195,6 +195,7 @@ class HotStuffBase: public HotStuffCore {
     void start(bool eb_loop = false);
 
     size_t size() const { return pn.all_peers().size(); }
+    PaceMaker &get_pace_maker() { return *pmaker; }
     void print_stat() const;
 
     /* Helper functions */
