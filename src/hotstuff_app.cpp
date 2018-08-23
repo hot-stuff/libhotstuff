@@ -124,15 +124,19 @@ int main(int argc, char **argv) {
     auto opt_privkey = Config::OptValStr::create();
     auto opt_help = Config::OptValFlag::create(false);
     auto opt_pace_maker = Config::OptValStr::create("dummy");
+    auto opt_fixed_proposer = Config::OptValInt::create(1);
+    auto opt_qc_timeout = Config::OptValDouble::create(0.5);
 
     config.add_opt("block-size", opt_blk_size, Config::SET_VAL);
     config.add_opt("parent-limit", opt_parent_limit, Config::SET_VAL);
     config.add_opt("stat-period", opt_stat_period, Config::SET_VAL);
-    config.add_opt("replica", opt_replicas, Config::APPEND);
-    config.add_opt("idx", opt_idx, Config::SET_VAL);
-    config.add_opt("cport", opt_client_port, Config::SET_VAL);
+    config.add_opt("replica", opt_replicas, Config::APPEND, 'a', "add an replica to the list");
+    config.add_opt("idx", opt_idx, Config::SET_VAL, 'i', "specify the index in the replica list");
+    config.add_opt("cport", opt_client_port, Config::SET_VAL, 'c', "specify the port listening for clients");
     config.add_opt("privkey", opt_privkey, Config::SET_VAL);
     config.add_opt("pace-maker", opt_pace_maker, Config::SET_VAL, 'p', "specify pace maker (sticky, dummy)");
+    config.add_opt("proposer", opt_fixed_proposer, Config::SET_VAL, 'l', "set the fixed proposer (for dummy)");
+    config.add_opt("qc-timeout", opt_qc_timeout, Config::SET_VAL, 't', "set QC timeout (for sticky)");
     config.add_opt("help", opt_help, Config::SWITCH_ON, 'h', "show this help info");
 
     EventContext ec;
@@ -175,9 +179,9 @@ int main(int argc, char **argv) {
         auto parent_limit = opt_parent_limit->get();
         hotstuff::pacemaker_bt pmaker;
         if (opt_pace_maker->get() == "sticky")
-            pmaker = new hotstuff::PaceMakerSticky(parent_limit, 0.5, ec);
+            pmaker = new hotstuff::PaceMakerSticky(parent_limit, opt_qc_timeout->get(), ec);
         else
-            pmaker = new hotstuff::PaceMakerDummyFixed(1, parent_limit);
+            pmaker = new hotstuff::PaceMakerDummyFixed(opt_fixed_proposer->get(), parent_limit);
 
         papp = new HotStuffApp(opt_blk_size->get(),
                             opt_stat_period->get(),
