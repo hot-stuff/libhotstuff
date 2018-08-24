@@ -235,6 +235,7 @@ class PMStickyProposer: virtual public PaceMaker {
     EventContext ec;
     /** QC timer or randomized timeout */
     Event timer;
+    Event ev_imp;
     block_t last_proposed;
     /** the proposer it believes */
     ReplicaID proposer;
@@ -249,12 +250,6 @@ class PMStickyProposer: virtual public PaceMaker {
     promise_t pm_wait_receive_proposal;
     promise_t pm_wait_propose;
     promise_t pm_qc_finish;
-
-    void reset_qc_timer() {
-        timer.del();
-        timer.add_with_timeout(qc_timeout);
-        HOTSTUFF_LOG_INFO("QC timer reset");
-    }
 
     void clear_promises() {
         pm_wait_receive_proposal.reject();
@@ -285,9 +280,8 @@ class PMStickyProposer: virtual public PaceMaker {
                 to_candidate(); /* proposer misbehave */
                 return;
             }
-            HOTSTUFF_LOG_INFO("proposer emits new QC");
+            HOTSTUFF_LOG_PROTO("proposer emits new QC");
             last_proposed = prop.blk;
-            //reset_qc_timer();
         }
         reg_follower_receive_proposal();
     }
@@ -304,6 +298,8 @@ class PMStickyProposer: virtual public PaceMaker {
                 .then([this, pm]() {
                     timer.del();
                     pm.resolve(proposer);
+                    timer.add_with_timeout(qc_timeout);
+                    HOTSTUFF_LOG_PROTO("QC timer reset");
                 });
             locked = true;
         }
@@ -317,7 +313,6 @@ class PMStickyProposer: virtual public PaceMaker {
     }
 
     void proposer_propose(const Proposal &prop) {
-        reset_qc_timer();
         last_proposed = prop.blk;
         locked = false;
         proposer_schedule_next();
@@ -354,23 +349,24 @@ class PMStickyProposer: virtual public PaceMaker {
         propose_elect_block();
     }
 
-    void reg_candidate_receive_proposal() {
+    void reg_cp_receive_proposal() {
         pm_wait_receive_proposal.reject();
         (pm_wait_receive_proposal = hsc->async_wait_receive_proposal())
             .then(
                 salticidae::generic_bind(
-                    &PMStickyProposer::candidate_receive_proposal, this, _1));
+                    &PMStickyProposer::cp_receive_proposal, this, _1));
     }
 
-    void candidate_receive_proposal(const Proposal &prop) {
+    void cp_receive_proposal(const Proposal &prop) {
         auto _proposer = prop.proposer;
         auto &p = last_proposed_by[_proposer];
         HOTSTUFF_LOG_PROTO("got block %s from %d", std::string(*prop.blk).c_str(), _proposer);
         p.reject();
-        (p = hsc->async_qc_finish(prop.blk)).then([this, _proposer]() {
-            to_follower(_proposer);
+        (p = hsc->async_qc_finish(prop.blk)).then([this, blk=prop.blk, _proposer]() {
+            if (hsc->get_bqc()->get_qc_ref() == blk)
+                to_follower(_proposer);
         });
-        reg_candidate_receive_proposal();
+        reg_cp_receive_proposal();
     }
 
     /* role transitions */
@@ -383,10 +379,6 @@ class PMStickyProposer: virtual public PaceMaker {
         last_proposed = nullptr;
         hsc->set_neg_vote(false);
         timer.clear();
-        //timer = Event(ec, -1, 0, [this](int, short) {
-        //    /* unable to get a QC in time */
-        //    to_candidate();
-        //});
         /* redirect all pending cmds to the new proposer */
         while (!pending_beats.empty())
         {
@@ -407,6 +399,7 @@ class PMStickyProposer: virtual public PaceMaker {
             /* proposer unable to get a QC in time */
             to_candidate();
         });
+        reg_cp_receive_proposal();
         proposer_propose(Proposal(-1, uint256_t(), hsc->get_genesis(), nullptr));
     }
 
@@ -421,17 +414,17 @@ class PMStickyProposer: virtual public PaceMaker {
             candidate_qc_timeout();
         });
         candidate_timeout = qc_timeout;
-        reg_candidate_receive_proposal();
+        reg_cp_receive_proposal();
         candidate_qc_timeout();
     }
 
     protected:
     void impeach() override {
         if (role == CANDIDATE) return;
-        timer = Event(ec, -1, 0, [this](int, short) {
+        ev_imp = Event(ec, -1, 0, [this](int, short) {
             to_candidate();
         });
-        timer.add_with_timeout(0);
+        ev_imp.add_with_timeout(0);
         HOTSTUFF_LOG_INFO("schedule to impeach the proposer");
     }
 
