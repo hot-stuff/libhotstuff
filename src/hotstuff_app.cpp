@@ -186,6 +186,8 @@ int main(int argc, char **argv) {
         hotstuff::pacemaker_bt pmaker;
         if (opt_pace_maker->get() == "sticky")
             pmaker = new hotstuff::PaceMakerSticky(parent_limit, opt_qc_timeout->get(), ec);
+        else if (opt_pace_maker->get() == "rr")
+            pmaker = new hotstuff::PaceMakerRR(parent_limit, opt_qc_timeout->get(), ec);
         else
             pmaker = new hotstuff::PaceMakerDummyFixed(opt_fixed_proposer->get(), parent_limit);
 
