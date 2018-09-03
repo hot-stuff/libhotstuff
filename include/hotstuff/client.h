@@ -26,8 +26,8 @@ struct MsgRespCmd {
 };
 
 class CommandDummy: public Command {
-    static uint64_t cnt;
-    uint64_t n;
+    uint32_t cid;
+    uint32_t n;
     uint256_t hash;
 
     public:
@@ -36,19 +36,15 @@ class CommandDummy: public Command {
 
     ~CommandDummy() override {}
 
-    CommandDummy(uint64_t n):
-        n(n), hash(salticidae::get_hash(*this)) {}
-
-    static command_t make_cmd() {
-        return new CommandDummy(cnt++);
-    }
+    CommandDummy(uint32_t cid, uint32_t n):
+        cid(cid), n(n), hash(salticidae::get_hash(*this)) {}
 
     void serialize(DataStream &s) const override {
-        s << n;
+        s << cid << n;
     }
 
     void unserialize(DataStream &s) override {
-        s >> n;
+        s >> cid >> n;
         hash = salticidae::get_hash(*this);
     }
 

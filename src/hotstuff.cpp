@@ -25,7 +25,7 @@ void MsgVote::postponed_parse(HotStuffCore *hsc) {
 
 const opcode_t MsgReqBlock::opcode;
 MsgReqBlock::MsgReqBlock(const std::vector<uint256_t> &blk_hashes) {
-    serialized << (uint32_t)htole(blk_hashes.size());
+    serialized << htole((uint32_t)blk_hashes.size());
     for (const auto &h: blk_hashes)
         serialized << h;
 }

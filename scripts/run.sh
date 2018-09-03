@@ -1,12 +1,12 @@
 #!/bin/bash
 
-proj_client_bin="hotstuff-client"
-proj_client_path="/home/ted/hot-stuff/$proj_client_bin"
+proj_server_bin="hotstuff-app"
+proj_server_path="/home/ted/hot-stuff/$proj_server_bin"
 proj_conf_name="hotstuff.conf"
 
 peer_list="./nodes.txt"     # the list of nodes
-client_list="./clients.txt"  # the list of clients
 conf_src="./hotstuff.gen.conf"
+server_map="./server_map.txt"         # optional mapping from node ip to server ip
 template_dir="template"     # the dir that keeps the content shared among all nodes
 remote_base="/home/ted/testbed"  # remote dir used to keep files for the experiment
 #remote_base="/tmp/"  # remote dir used to keep files for the experiment
@@ -15,8 +15,13 @@ remote_user="ted"
 copy_to_remote_pat="rsync -avz <local_path> <remote_user>@<remote_ip>:<remote_path>"
 copy_from_remote_pat="rsync -avz <remote_user>@<remote_ip>:<remote_path> <local_path>"
 exe_remote_pat="ssh <remote_user>@<remote_ip> bash"
-run_remote_pat="cd \"<rworkdir>\"; '$proj_client_path' --idx \"<node_id>\" --iter -1 --max-async 3"
-reset_remote_pat="pgrep -f '$proj_client_bin' | xargs kill -9"
+run_remote_pat="cd \"<rworkdir>\"; gdb -ex r -ex bt -ex generate-core-file -ex q --args '$proj_server_path' --conf \"hotstuff.gen-sec<node_id>.conf\""
+reset_remote_pat="pgrep -f '$proj_server_bin' | xargs kill -9"
+
+fin_keyword="error:"  # the keyword indicating completion of execution
+fin_chk_period=1
+fin_chk_skip_pat='^([A-O][0-9]*)|(_ctl)$'
+force_peer_list=0
 
 function join { local IFS="$1"; shift; echo "$*"; }
 function split {
@@ -28,6 +33,7 @@ function split {
 function die { echo "$1"; exit 1; }
 
 declare -A nodes
+declare -A node_confs
 nodes_cnt=0
 function get_node_info {
     pl="$1"
@@ -42,13 +48,24 @@ function get_node_info {
         tup0=($(split $'\t' "$tuple"))
         tup=($(split : "${tup0[0]}"))
         nodes[${tup[0]}]="${tup[1]}:${tup[2]}"
-        echo "${tup[0]} => ${nodes[${tup[0]}]}"
+        node_confs[${tup[0]}]="${tup0[@]:1}"
+        echo "${tup[0]} => ${nodes[${tup[0]}]} & ${node_confs[${tup[0]}]}"
         let nodes_cnt++
     done
 }
 
-function get_client_info {
-    cip_list=($(cat "$1"))
+declare -A server_map
+function get_server_map {
+    {
+        IFS=$'\n'
+        map_list=($(cat "$1"))
+    }
+    IFS=$'\n \t'
+    for pair in "${map_list[@]}"; do
+        p=($pair)
+        server_map[${p[0]}]="${p[1]}"
+        echo "mapping ${p[0]} => ${p[1]}"
+    done
 }
 
 
@@ -128,11 +145,17 @@ function _remote_load {
     local workdir="$1"
     local rworkdir="$2"
     local node_ip="$3"
+    local rid="$4"
+    local extra_conf=($5)
     local tmpldir="$workdir/$template_dir/"
+    local node_tmpldir="$workdir/$rid"
     [[ $(execute_remote_cmd_stat "$node_ip" \
         "mkdir -p \"$rworkdir\"" \
         /dev/null) == 0 ]] || die "failed to create directory $rworkdir"
     copy_file "$copy_to_remote_pat" "$tmpldir" "$node_ip" "$rworkdir"
+    for conf in "${extra_conf[@]}"; do
+        copy_file "$copy_to_remote_pat" "$node_tmpldir/$conf" "$node_ip" "$rworkdir"
+    done
 }
 
 function _remote_start {
@@ -141,11 +164,10 @@ function _remote_start {
     local node_id="$3"
     local node_ip="$4"
     local client_port="$5"
-    local client_ip="$6"
     local cmd="${run_remote_pat//<rworkdir>/$rworkdir}"
     cmd="${cmd//<node_id>/$node_id}"
-    cmd="${cmd//<server>/$node_ip:$client_port}"
-    execute_remote_cmd_pid "$client_ip" "$cmd" \
+    cmd="${cmd//<cport>/$client_port}"
+    execute_remote_cmd_pid "$node_ip" "$cmd" \
         "\"$rworkdir/$remote_log\"" > "$workdir/${node_id}.pid"
 }
 
@@ -167,6 +189,10 @@ function _remote_status {
     _remote_exec "$1" "$2" "$3" "kill -0 $node_pid"
 }
 
+function _remote_finished {
+    _remote_exec "$1" "$2" "$3" "grep \"$fin_keyword\" \"$rworkdir/$remote_log\""
+}
+
 function _remote_fetch {
     local workdir="$1"
     local rworkdir="$2"
@@ -182,45 +208,61 @@ function start_all {
     rm -rf "$tmpldir"
     mkdir "$tmpldir"
     cp "$peer_list" "$workdir/peer_list.txt"
-    cp "$client_list" "$workdir/client_list.txt"
+    cp "$server_map" "$workdir/server_map.txt"
     get_node_info "$workdir/peer_list.txt"
-    get_client_info "$workdir/client_list.txt"
-    echo "coyping configuration file"
+    get_server_map "$workdir/server_map.txt"
+    echo "copying configuration file"
     cp "$conf_src" "$tmpldir/$proj_conf_name"
-    local nclient="${#cip_list[@]}"
-    local i=0
-    for tuple in "${node_list[@]}"; do
-        local cip="${cip_list[$i]}"
-        local tup=($(split : "$tuple"))
-        local rid="${tup[0]}"
+    for rid in "${!nodes[@]}"; do
+        local node_tmpldir="$workdir/$rid"
         local ip="$(get_ip_by_id $rid)"
+        ip="${server_map[$ip]:-$ip}"
         local pport="$(get_peer_port_by_id $rid)"
         local cport="$(get_client_port_by_id $rid)"
-        local rworkdir="$remote_base/$workdir/${i}"
+        local rworkdir="$remote_base/$workdir/${rid}"
+        local extra_conf_=(${node_confs[$rid]})
+        rm -rf "$node_tmpldir"
+        mkdir "$node_tmpldir"
         (
-        echo "Starting a client @ $cip, connecting to server #$rid @ $ip:$cport"
-        _remote_load "$workdir" "$rworkdir" "$cip"
-        _remote_start "$workdir" "$rworkdir" "$i" "$ip" "$cport" "$cip"
-        echo "client #$i started"
+        local extra_conf=()
+        for conf in "${extra_conf_[@]}"; do
+            cp "$conf" "$node_tmpldir/"
+            extra_conf+=($(basename "$conf"))
+            copy_file "$copy_to_remote_pat" "$tmpldir/$conf" "$node_ip" "$rworkdir"
+        done
+        echo "Starting $rid @ $ip, $pport and $cport"
+        _remote_load "$workdir" "$rworkdir" "$ip" "$rid" "${extra_conf[@]}"
+        echo "$rid loaded"
         ) &
-        let i++
-        if [[ "$i" -eq "$nclient" ]]; then
-            break
-        fi
+    done
+    wait
+    for rid in "${!nodes[@]}"; do
+        local ip="$(get_ip_by_id $rid)"
+        ip="${server_map[$ip]:-$ip}"
+        local pport="$(get_peer_port_by_id $rid)"
+        local cport="$(get_client_port_by_id $rid)"
+        local rworkdir="$remote_base/$workdir/${rid}"
+        (
+        echo "Starting $rid @ $ip, $pport and $cport"
+        _remote_start "$workdir" "$rworkdir" "$rid" "$ip" "$cport"
+        echo "$rid started"
+        ) &
     done
     wait
 }
 
 function fetch_all {
     local workdir="$1"
-    get_client_info "$workdir/client_list.txt"
-    local i=0
-    for cip in "${cip_list[@]}"; do
-        local rworkdir="$remote_base/$workdir/${i}"
-        local pid="$(cat $workdir/${i}.pid)"
-        local msg="Fetching $i @ $cip"
-        _remote_fetch "$workdir" "$rworkdir" "$i" "$cip" && echo "$msg: copied" || echo "$msg: failed" &
-        let i++
+    get_node_info "$workdir/peer_list.txt"
+    get_server_map "$workdir/server_map.txt"
+    for rid in "${!nodes[@]}"; do
+        local ip="$(get_ip_by_id $rid)"
+        ip="${server_map[$ip]:-$ip}"
+        local port="$(get_peer_port_by_id $rid)"
+        local rworkdir="$remote_base/$workdir/${rid}"
+        local pid="$(cat $workdir/${rid}.pid)"
+        local msg="Fetching $rid @ $ip, $port "
+        _remote_fetch "$workdir" "$rworkdir" "$rid" "$ip" && echo "$msg: copied" || echo "$msg: failed" &
     done
     wait
 }
@@ -228,13 +270,15 @@ function fetch_all {
 function exec_all {
     local workdir="$1"
     local cmd="$2"
-    get_client_info "$workdir/client_list.txt"
-    local i=0
-    for cip in "${cip_list[@]}"; do
-        local rworkdir="$remote_base/$workdir/${i}"
-        local msg="Executing $i @ $cip"
-        _remote_exec "$workdir" "$rworkdir" "$cip" "$cmd" && echo "$msg: succeeded" || echo "$msg: failed" &
-        let i++
+    get_node_info "$workdir/peer_list.txt"
+    get_server_map "$workdir/server_map.txt"
+    for rid in "${!nodes[@]}"; do
+        local ip="$(get_ip_by_id $rid)"
+        ip="${server_map[$ip]:-$ip}"
+        local port="$(get_peer_port_by_id $rid)"
+        local rworkdir="$remote_base/$workdir/${rid}"
+        local msg="Executing $rid @ $ip, $port "
+        _remote_exec "$workdir" "$rworkdir" "$ip" "$cmd" && echo "$msg: succeeded" || echo "$msg: failed" &
     done
     wait
 }
@@ -245,30 +289,80 @@ function reset_all {
 
 function stop_all {
     local workdir="$1"
-    get_client_info "$workdir/client_list.txt"
-    local i=0
-    for cip in "${cip_list[@]}"; do
-        local rworkdir="$remote_base/$workdir/${i}"
-        local pid="$(cat $workdir/${i}.pid)"
-        local msg="Killing $i @ $cip"
-        _remote_stop "$workdir" "$rworkdir" "$cip" "$pid" && echo "$msg: stopped" || echo "$msg: failed" &
-        let i++
+    get_node_info "$workdir/peer_list.txt"
+    get_server_map "$workdir/server_map.txt"
+    for rid in "${!nodes[@]}"; do
+        local ip="$(get_ip_by_id $rid)"
+        ip="${server_map[$ip]:-$ip}"
+        local port="$(get_peer_port_by_id $rid)"
+        local rworkdir="$remote_base/$workdir/${rid}"
+        local pid="$(cat $workdir/${rid}.pid)"
+        local msg="Killing $rid @ $ip, $port "
+        _remote_stop "$workdir" "$rworkdir" "$ip" "$pid" && echo "$msg: stopped" || echo "$msg: failed" &
     done
     wait
 }
 
 function status_all {
     local workdir="$1"
-    get_client_info "$workdir/client_list.txt"
-    local i=0
-    for cip in "${cip_list[@]}"; do
-        local rworkdir="$remote_base/$workdir/${i}"
-        local pid="$(cat $workdir/${i}.pid)"
-        local msg="$i @ $cip"
-        _remote_status "$workdir" "$rworkdir" "$cip" "$pid" && echo "$msg: running" || echo "$msg: dead" &
-        let i++
+    get_node_info "$workdir/peer_list.txt"
+    get_server_map "$workdir/server_map.txt"
+    for rid in "${!nodes[@]}"; do
+        local ip="$(get_ip_by_id $rid)"
+        ip="${server_map[$ip]:-$ip}"
+        local port="$(get_peer_port_by_id $rid)"
+        local rworkdir="$remote_base/$workdir/${rid}"
+        local pid="$(cat $workdir/${rid}.pid)"
+        local msg="$rid @ $ip, $port "
+        _remote_status "$workdir" "$rworkdir" "$ip" "$pid" && echo "$msg: running" || echo "$msg: dead" &
     done
     wait
+}
+
+function finished_all {
+    local workdir="$1"
+    get_node_info "$workdir/peer_list.txt"
+    get_server_map "$workdir/server_map.txt"
+    for rid in "${!nodes[@]}"; do
+        local ip="$(get_ip_by_id $rid)"
+        ip="${server_map[$ip]:-$ip}"
+        local port="$(get_peer_port_by_id $rid)"
+        local rworkdir="$remote_base/$workdir/${rid}"
+        if [[ "$rid" =~ $fin_chk_skip_pat ]]; then
+            continue
+        fi
+        printf "$rid @ $ip, $port "
+        _remote_finished "$workdir" "$rworkdir" "$ip" && echo "finished" || echo "in-progress"
+    done
+}
+
+function wait_all {
+    local workdir="$1"
+    get_node_info "$workdir/peer_list.txt"
+    get_server_map "$workdir/server_map.txt"
+    while true; do
+        finished=1
+        printf "checking the nodes..."
+        for rid in "${!nodes[@]}"; do
+            local ip="$(get_ip_by_id $rid)"
+            ip="${server_map[$ip]:-$ip}"
+            local port="$(get_peer_port_by_id $rid)"
+            local rworkdir="$remote_base/$workdir/${rid}"
+            if [[ "$rid" =~ $fin_chk_skip_pat ]]; then
+                continue
+            fi
+            if ! _remote_finished "$workdir" "$rworkdir" "$ip"; then
+                finished=0
+                break
+            fi
+        done
+        if [[ $finished == 1 ]]; then
+            break
+        fi
+        echo "not finished yet, wait for $fin_chk_period secs"
+        sleep "$fin_chk_period"
+    done
+    echo "finished"
 }
 
 function check_all {
@@ -278,7 +372,7 @@ function check_all {
 }
 
 function print_help {
-echo "Usage: $0 [--bin] [--path] [--conf] [--conf-src] [--peer-list] [--client-list] [--user] [--force-peer-list] [--help] COMMAND WORKDIR
+echo "Usage: $0 [--bin] [--path] [--conf] [--conf-src] [--peer-list] [--server-map] [--user] [--force-peer-list] [--help] COMMAND WORKDIR
 
     --help                      show this help and exit
     --bin                       name of binary executable
@@ -286,7 +380,7 @@ echo "Usage: $0 [--bin] [--path] [--conf] [--conf-src] [--peer-list] [--client-l
     --conf                      shared configuration filename
     --conf-src                  shared configuration source file
     --peer-list FILE            read peer list from FILE (default: $peer_list)
-    --client-list FILE          read client list from FILE (default: $client_list)
+    --server-map FILE           read server map from FILE (default: $server_map)
     --user      USER            the username to login the remote machines
     --force-peer-list           force the use of FILE specified by --peer-list
                                 instead of the peer list in WORKDIR"
@@ -305,7 +399,7 @@ SHORT=
 LONG='\
 bin:,path:,conf:,conf-src:,\
 peer-list:,\
-client-list:,\
+server-map:,\
 remote-base:,\
 remote-user:,\
 copy-to-remote-pat:,\
@@ -313,6 +407,9 @@ copy-from-remote-pat:,\
 exe-remote-pat:,\
 run-remote-pat:,\
 reset-remote-pat:,\
+fin-keyword:,\
+fin-chk-period:,\
+fin-chk-skip-pat:,\
 force-peer-list,\
 help'
 
@@ -322,12 +419,12 @@ eval set -- "$PARSED"
 
 while true; do
     case "$1" in
-        --bin) proj_client_bin="$2"; shift 2;;
-        --path) proj_client_path="$2"; shift 2;;
+        --bin) proj_server_bin="$2"; shift 2;;
+        --path) proj_server_path="$2"; shift 2;;
         --conf) proj_conf_name="$2"; shift 2;;
         --conf-src) conf_src="$2"; shift 2;;
         --peer-list) peer_list="$2"; shift 2;;
-        --client-list) client_list="$2"; shift 2;;
+        --server-map) server_map="$2"; shift 2;;
         --remote-base) remote_base="$2"; shift 2;;
         --remote-user) remote_user="$2"; shift 2;;
         --copy-to-remote-pat) copy_to_remote_pat="$2"; shift 2;;
@@ -335,6 +432,10 @@ while true; do
         --exe-remote-pat) exe_remote_pat="$2"; shift 2;;
         --run-remote-pat) run_remote_pat="$2"; shift 2;;
         --reset-remote-pat) reset_remote_pat="$2"; shift 2;;
+        --fin-keyword) fin_keyword="$2"; shift 2;;
+        --fin-chk-period) fin_chk_period="$2"; shift 2;;
+        --fin-chk-skip-pat) fin_chk_skip_pat="$2"; shift 2;;
+        --force-peer-list) force_peer_list=1; shift 1;;
         --help) print_help; shift 1;;
         --) shift; break;;
         *) die "internal error";;
@@ -347,7 +448,9 @@ case "$cmd" in
     stop) check_argnum 1 "$@" && stop_all "$1" ;;
     status) check_argnum 1 "$@" && status_all "$1" ;;
     check) check_argnum 1 "$@" && check_all "$1" ;;
+    finished) check_argnum 1 "$@" && finished_all "$1" ;;
     fetch) check_argnum 1 "$@" && fetch_all "$1" ;;
+    wait) check_argnum 1 "$@" && wait_all "$1" ;;
     reset) check_argnum 1 "$@" && reset_all "$1" ;;
     exec) check_argnum 2 "$@" && exec_all "$1" "$2" ;;
     *) print_help ;;

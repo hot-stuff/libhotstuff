@@ -23,13 +23,6 @@ using salticidae::_2;
 const double ent_waiting_timeout = 10;
 const double double_inf = 1e10;
 
-enum {
-    PROPOSE = 0x0,
-    VOTE = 0x1,
-    QUERY_FETCH_BLK = 0x2,
-    RESP_FETCH_BLK = 0x3,
-};
-
 /** Network message format for HotStuff. */
 struct MsgPropose {
     static const opcode_t opcode = 0x0;
@@ -202,6 +195,7 @@ class HotStuffBase: public HotStuffCore {
     void start(bool eb_loop = false);
 
     size_t size() const { return pn.all_peers().size(); }
+    PaceMaker &get_pace_maker() { return *pmaker; }
     void print_stat() const;
 
     /* Helper functions */
