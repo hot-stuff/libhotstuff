@@ -212,7 +212,7 @@ function start_all {
     get_node_info "$workdir/peer_list.txt"
     get_server_map "$workdir/server_map.txt"
     echo "copying configuration file"
-    cp "$conf_src" "$tmpldir/$proj_conf_name"
+    rsync -avP "$conf_src" "$tmpldir/$proj_conf_name"
     for rid in "${!nodes[@]}"; do
         local node_tmpldir="$workdir/$rid"
         local ip="$(get_ip_by_id $rid)"

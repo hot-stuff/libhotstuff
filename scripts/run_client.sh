@@ -186,7 +186,7 @@ function start_all {
     get_node_info "$workdir/peer_list.txt"
     get_client_info "$workdir/client_list.txt"
     echo "coyping configuration file"
-    cp "$conf_src" "$tmpldir/$proj_conf_name"
+    rsync -avP "$conf_src" "$tmpldir/$proj_conf_name"
     local nclient="${#cip_list[@]}"
     local i=0
     for tuple in "${node_list[@]}"; do
