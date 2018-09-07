@@ -187,12 +187,10 @@ function start_all {
     get_client_info "$workdir/client_list.txt"
     echo "coyping configuration file"
     rsync -avP "$conf_src" "$tmpldir/$proj_conf_name"
-    local nclient="${#cip_list[@]}"
     local i=0
-    for tuple in "${node_list[@]}"; do
-        local cip="${cip_list[$i]}"
-        local tup=($(split : "$tuple"))
-        local rid="${tup[0]}"
+    local j=0
+    for cip in "${cip_list[@]}"; do
+        local rid="${nodes[$i]}"
         local ip="$(get_ip_by_id $rid)"
         local pport="$(get_peer_port_by_id $rid)"
         local cport="$(get_client_port_by_id $rid)"
@@ -200,12 +198,13 @@ function start_all {
         (
         echo "Starting a client @ $cip, connecting to server #$rid @ $ip:$cport"
         _remote_load "$workdir" "$rworkdir" "$cip"
-        _remote_start "$workdir" "$rworkdir" "$i" "$ip" "$cport" "$cip"
-        echo "client #$i started"
+        _remote_start "$workdir" "$rworkdir" "$j" "$ip" "$cport" "$cip"
+        echo "client #$j started"
         ) &
         let i++
-        if [[ "$i" -eq "$nclient" ]]; then
-            break
+        let j++
+        if [[ "$i" -eq "${#nodes[@]}" ]]; then
+            i=0
         fi
     done
     wait
