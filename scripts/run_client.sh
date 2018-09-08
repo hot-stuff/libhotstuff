@@ -194,7 +194,7 @@ function start_all {
         local ip="$(get_ip_by_id $rid)"
         local pport="$(get_peer_port_by_id $rid)"
         local cport="$(get_client_port_by_id $rid)"
-        local rworkdir="$remote_base/$workdir/${i}"
+        local rworkdir="$remote_base/$workdir/${j}"
         (
         echo "Starting a client @ $cip, connecting to server #$rid @ $ip:$cport"
         _remote_load "$workdir" "$rworkdir" "$cip"

@@ -1,5 +1,6 @@
 #include <cassert>
 #include <random>
+#include <signal.h>
 #include "salticidae/type.h"
 #include "salticidae/netaddr.h"
 #include "salticidae/network.h"
@@ -42,6 +43,7 @@ struct Request {
 std::unordered_map<ReplicaID, MsgNetwork<opcode_t>::conn_t> conns;
 std::unordered_map<const uint256_t, Request> waiting;
 std::vector<NetAddr> replicas;
+std::vector<std::pair<struct timeval, double>> elapsed;
 MsgNetwork<opcode_t> mn(eb, 10, 10, 4096);
 
 void set_proposer(ReplicaID rid) {
@@ -97,7 +99,10 @@ void client_resp_cmd_handler(MsgRespCmd &&msg, MsgNetwork<opcode_t>::Conn &) {
                         std::string(fin).c_str(),
                         et.elapsed_sec, et.cpu_elapsed_sec);
 #else
-    HOTSTUFF_LOG_INFO("%.6f %.6f", et.elapsed_sec, et.cpu_elapsed_sec);
+    struct timeval tv;
+    gettimeofday(&tv, nullptr);
+    elapsed.push_back(std::make_pair(tv, et.elapsed_sec));
+    //HOTSTUFF_LOG_INFO("%.6f %.6f", et.elapsed_sec, et.cpu_elapsed_sec);
 #endif
     waiting.erase(it);
     try_send();
@@ -108,8 +113,16 @@ std::pair<std::string, std::string> split_ip_port_cport(const std::string &s) {
     return std::make_pair(ret[0], ret[1]);
 }
 
+void signal_handler(int) {
+    throw HotStuffError("got terminal signal");
+}
+
 int main(int argc, char **argv) {
     Config config("hotstuff.conf");
+
+    signal(SIGTERM, signal_handler);
+    signal(SIGINT, signal_handler);
+
     auto opt_idx = Config::OptValInt::create(0);
     auto opt_replicas = Config::OptValStrVec::create();
     auto opt_max_iter_num = Config::OptValInt::create(100);
@@ -152,6 +165,13 @@ int main(int argc, char **argv) {
         eb.dispatch();
     } catch (HotStuffError &e) {
         HOTSTUFF_LOG_ERROR("exception: %s", std::string(e).c_str());
+        for (const auto &e: elapsed)
+        {
+            char fmt[64];
+            struct tm *tmp = localtime(&e.first.tv_sec);
+            strftime(fmt, sizeof fmt, "%Y-%m-%d %H:%M:%S.%%06u [hotstuff info] %%.6f\n", tmp);
+            fprintf(stderr, fmt, e.first.tv_usec, e.second);
+        }
     }
     return 0;
 }

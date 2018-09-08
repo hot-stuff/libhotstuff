@@ -1,7 +1,23 @@
 import sys
 import re
 import argparse
+import numpy as np
 from datetime import datetime, timedelta
+
+def remove_outliers(x, outlierConstant = 1.5):
+    a = np.array(x)
+    upper_quartile = np.percentile(a, 75)
+    lower_quartile = np.percentile(a, 25)
+    IQR = (upper_quartile - lower_quartile) * outlierConstant
+    quartileSet = (lower_quartile - IQR, upper_quartile + IQR)
+    resultList = []
+    removedList = []
+    for y in a.tolist():
+        if y >= quartileSet[0] and y <= quartileSet[1]:
+            resultList.append(y)
+        else:
+            removedList.append(y)
+    return (resultList, removedList)
 
 def str2datetime(s):
     parts = s.split('.')
@@ -29,14 +45,14 @@ if __name__ == '__main__':
     begin_time = None
     next_begin_time = None
     cnt = 0
-    lat = 0
+    lats = []
     timestamps = []
     values = []
     for line in sys.stdin:
         m = commit_pat.match(line)
         if m:
             timestamps.append(str2datetime(m.group(1)))
-            lat += float(m.group(2))
+            lats.append(float(m.group(2)))
     timestamps.sort()
     for timestamp in timestamps:
         if begin_time and timestamp < next_begin_time:
@@ -49,5 +65,7 @@ if __name__ == '__main__':
             cnt = 1
     values.append(cnt)
     print(values)
-    print("lat = {:.3f}ms".format(lat / len(timestamps) * 1e3))
+    print("lat = {:.3f}ms".format(sum(lats) / len(lats) * 1e3))
+    lats, _ = remove_outliers(lats)
+    print("lat = {:.3f}ms".format(sum(lats) / len(lats) * 1e3))
     plot_thr(args.output)
