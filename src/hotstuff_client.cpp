@@ -102,7 +102,6 @@ void client_resp_cmd_handler(MsgRespCmd &&msg, MsgNetwork<opcode_t>::Conn &) {
     struct timeval tv;
     gettimeofday(&tv, nullptr);
     elapsed.push_back(std::make_pair(tv, et.elapsed_sec));
-    //HOTSTUFF_LOG_INFO("%.6f %.6f", et.elapsed_sec, et.cpu_elapsed_sec);
 #endif
     waiting.erase(it);
     try_send();
@@ -165,6 +164,7 @@ int main(int argc, char **argv) {
         eb.dispatch();
     } catch (HotStuffError &e) {
         HOTSTUFF_LOG_ERROR("exception: %s", std::string(e).c_str());
+#ifdef HOTSTUFF_ENABLE_BENCHMARK
         for (const auto &e: elapsed)
         {
             char fmt[64];
@@ -172,6 +172,7 @@ int main(int argc, char **argv) {
             strftime(fmt, sizeof fmt, "%Y-%m-%d %H:%M:%S.%%06u [hotstuff info] %%.6f\n", tmp);
             fprintf(stderr, fmt, e.first.tv_usec, e.second);
         }
+#endif
     }
     return 0;
 }

@@ -39,8 +39,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--interval', type=float, default=1, required=False)
     parser.add_argument('--output', type=str, default="hist.png", required=False)
+    parser.add_argument('--plot', action='store_true')
     args = parser.parse_args()
-    commit_pat = re.compile('([^[].*) \[hotstuff info\] ([0-9.]*) [0-9.]*$')
+    commit_pat = re.compile('([^[].*) \[hotstuff info\] ([0-9.]*)$')
     interval = args.interval
     begin_time = None
     next_begin_time = None
@@ -68,4 +69,5 @@ if __name__ == '__main__':
     print("lat = {:.3f}ms".format(sum(lats) / len(lats) * 1e3))
     lats, _ = remove_outliers(lats)
     print("lat = {:.3f}ms".format(sum(lats) / len(lats) * 1e3))
-    plot_thr(args.output)
+    if args.plot:
+        plot_thr(args.output)
