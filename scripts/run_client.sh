@@ -17,6 +17,7 @@ copy_from_remote_pat="rsync -avz <remote_user>@<remote_ip>:<remote_path> <local_
 exe_remote_pat="ssh <remote_user>@<remote_ip> bash"
 run_remote_pat="cd \"<rworkdir>\"; '$proj_client_path' --idx \"<node_id>\" --iter -1 --max-async 3"
 reset_remote_pat="pgrep -f '$proj_client_bin' | xargs kill -9"
+node_id_step=1
 
 function join { local IFS="$1"; shift; echo "$*"; }
 function split {
@@ -143,7 +144,8 @@ function _remote_start {
     local client_port="$5"
     local client_ip="$6"
     local cmd="${run_remote_pat//<rworkdir>/$rworkdir}"
-    cmd="${cmd//<node_id>/$node_id}"
+    cmd="${cmd//<node_id_step>/$node_id_step}"
+    cmd="${cmd//<node_id>/$((node_id * node_id_step))}"
     cmd="${cmd//<server>/$node_ip:$client_port}"
     execute_remote_cmd_pid "$client_ip" "$cmd" \
         "\"$rworkdir/$remote_log\"" > "$workdir/${node_id}.pid"
@@ -313,6 +315,7 @@ exe-remote-pat:,\
 run-remote-pat:,\
 reset-remote-pat:,\
 force-peer-list,\
+node-id-step:,\
 help'
 
 PARSED=$(getopt --options "$SHORT" --longoptions "$LONG" --name "$0" -- "$@")
@@ -334,6 +337,7 @@ while true; do
         --exe-remote-pat) exe_remote_pat="$2"; shift 2;;
         --run-remote-pat) run_remote_pat="$2"; shift 2;;
         --reset-remote-pat) reset_remote_pat="$2"; shift 2;;
+        --node-id-step) node_id_step="$2"; shift 2;;
         --help) print_help; shift 1;;
         --) shift; break;;
         *) die "internal error";;

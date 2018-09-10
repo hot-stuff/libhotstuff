@@ -92,7 +92,8 @@ class HotStuffApp: public HotStuff {
                 NetAddr plisten_addr,
                 NetAddr clisten_addr,
                 hotstuff::pacemaker_bt pmaker,
-                const EventContext &ec);
+                const EventContext &ec,
+                size_t nworker);
 
     void start();
 };
@@ -131,6 +132,7 @@ int main(int argc, char **argv) {
     auto opt_fixed_proposer = Config::OptValInt::create(1);
     auto opt_qc_timeout = Config::OptValDouble::create(0.5);
     auto opt_imp_timeout = Config::OptValDouble::create(11);
+    auto opt_nworker = Config::OptValInt::create(4);
 
     config.add_opt("block-size", opt_blk_size, Config::SET_VAL);
     config.add_opt("parent-limit", opt_parent_limit, Config::SET_VAL);
@@ -143,6 +145,7 @@ int main(int argc, char **argv) {
     config.add_opt("proposer", opt_fixed_proposer, Config::SET_VAL, 'l', "set the fixed proposer (for dummy)");
     config.add_opt("qc-timeout", opt_qc_timeout, Config::SET_VAL, 't', "set QC timeout (for sticky)");
     config.add_opt("imp-timeout", opt_imp_timeout, Config::SET_VAL, 'u', "set impeachment timeout (for sticky)");
+    config.add_opt("nworker", opt_nworker, Config::SET_VAL, 'n', "the number of threads for verification");
     config.add_opt("help", opt_help, Config::SWITCH_ON, 'h', "show this help info");
 
     EventContext ec;
@@ -199,7 +202,8 @@ int main(int argc, char **argv) {
                             plisten_addr,
                             NetAddr("0.0.0.0", client_port),
                             std::move(pmaker),
-                            ec);
+                            ec,
+                            opt_nworker->get());
         for (size_t i = 0; i < replicas.size(); i++)
         {
             auto p = split_ip_port_cport(replicas[i].first);
@@ -224,9 +228,10 @@ HotStuffApp::HotStuffApp(uint32_t blk_size,
                         NetAddr plisten_addr,
                         NetAddr clisten_addr,
                         hotstuff::pacemaker_bt pmaker,
-                        const EventContext &ec):
+                        const EventContext &ec,
+                        size_t nworker):
     HotStuff(blk_size, idx, raw_privkey,
-            plisten_addr, std::move(pmaker), ec),
+            plisten_addr, std::move(pmaker), ec, nworker),
     stat_period(stat_period),
     impeach_timeout(impeach_timeout),
     ec(ec),
