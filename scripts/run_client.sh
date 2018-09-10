@@ -144,6 +144,7 @@ function _remote_start {
     local client_port="$5"
     local client_ip="$6"
     local cmd="${run_remote_pat//<rworkdir>/$rworkdir}"
+    cmd="${cmd//<node_id_step>/$node_id_step}"
     cmd="${cmd//<node_id>/$((node_id * node_id_step))}"
     cmd="${cmd//<server>/$node_ip:$client_port}"
     execute_remote_cmd_pid "$client_ip" "$cmd" \
