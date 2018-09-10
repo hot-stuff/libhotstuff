@@ -1,12 +1,14 @@
 cmake_minimum_required(VERSION 3.9)
 project(hotstuff)
 set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/salticidae/cmake/Modules/")
 
 add_subdirectory(salticidae)
 include_directories(salticidae/include)
 
 find_package(OpenSSL REQUIRED)
+find_package(Threads REQUIRED)
 
 include(ExternalProject)
 include_directories(secp256k1/include)
@@ -27,6 +29,7 @@ add_dependencies(secp256k1 libsecp256k1)
 
 # add libraries
 
+include_directories(./)
 include_directories(include)
 add_library(hotstuff
     OBJECT
@@ -43,11 +46,11 @@ if(BUILD_SHARED)
     set_property(TARGET hotstuff PROPERTY POSITION_INDEPENDENT_CODE 1)
     add_library(hotstuff_shared SHARED $<TARGET_OBJECTS:hotstuff>)
     set_target_properties(hotstuff_shared PROPERTIES OUTPUT_NAME "hotstuff")
-    target_link_libraries(hotstuff_shared salticidae_static secp256k1 crypto)
+    target_link_libraries(hotstuff_shared salticidae_static secp256k1 crypto ${CMAKE_THREAD_LIBS_INIT})
 endif()
 add_library(hotstuff_static STATIC $<TARGET_OBJECTS:hotstuff>)
 set_target_properties(hotstuff_static PROPERTIES OUTPUT_NAME "hotstuff")
-target_link_libraries(hotstuff_static salticidae_static secp256k1 crypto)
+target_link_libraries(hotstuff_static salticidae_static secp256k1 crypto ${CMAKE_THREAD_LIBS_INIT})
 
 add_subdirectory(test)
 

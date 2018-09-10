@@ -196,11 +196,11 @@ void HotStuffCore::on_receive_vote(const Vote &vote) {
     block_t blk = get_delivered_blk(vote.blk_hash);
     if (vote.cert == nullptr) return;
     /* otherwise the vote is positive */
-    if (!vote.verify())
-    {
-        LOG_WARN("invalid vote from %d", vote.voter);
-        return;
-    }
+    //if (!vote.verify())
+    //{
+    //    LOG_WARN("invalid vote from %d", vote.voter);
+    //    return;
+    //}
     if (!blk->voted.insert(vote.voter).second)
     {
         LOG_WARN("duplicate vote from %d", vote.voter);

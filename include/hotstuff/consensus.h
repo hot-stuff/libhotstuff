@@ -253,6 +253,13 @@ struct Vote: public Serializable {
                 cert->get_blk_hash() == blk_hash;
     }
 
+    promise_t verify(VeriPool &vpool) const {
+        assert(hsc != nullptr);
+        return cert->verify(hsc->get_config().get_pubkey(voter), vpool).then([this](bool result) {
+            return result && cert->get_blk_hash() == blk_hash;
+        });
+    }
+
     operator std::string () const {
         DataStream s;
         s << "<vote "

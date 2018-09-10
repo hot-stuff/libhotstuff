@@ -6,6 +6,7 @@
 #include "secp256k1.h"
 #include "salticidae/crypto.h"
 #include "hotstuff/type.h"
+#include "hotstuff/worker.h"
 
 namespace hotstuff {
 
@@ -31,6 +32,7 @@ using privkey_bt = BoxObj<PrivKey>;
 class PartCert: public Serializable, public Cloneable {
     public:
     virtual ~PartCert() = default;
+    virtual promise_t verify(const PubKey &pubkey, VeriPool &vpool) = 0;
     virtual bool verify(const PubKey &pubkey) = 0;
     virtual const uint256_t &get_blk_hash() const = 0;
     virtual PartCert *clone() override = 0;
@@ -43,6 +45,7 @@ class QuorumCert: public Serializable, public Cloneable {
     virtual ~QuorumCert() = default;
     virtual void add_part(ReplicaID replica, const PartCert &pc) = 0;
     virtual void compute() = 0;
+    virtual promise_t verify(const ReplicaConfig &config, VeriPool &vpool) = 0;
     virtual bool verify(const ReplicaConfig &config) = 0;
     virtual const uint256_t &get_blk_hash() const = 0;
     virtual QuorumCert *clone() override = 0;
@@ -85,6 +88,9 @@ class PartCertDummy: public PartCert {
     }
 
     bool verify(const PubKey &) override { return true; }
+    promise_t verify(const PubKey &, VeriPool &) override {
+        return promise_t([](promise_t &pm){ pm.resolve(true); });
+    }
 
     const uint256_t &get_blk_hash() const override { return blk_hash; }
 };
@@ -112,6 +118,9 @@ class QuorumCertDummy: public QuorumCert {
     void add_part(ReplicaID, const PartCert &) override {}
     void compute() override {}
     bool verify(const ReplicaConfig &) override { return true; }
+    promise_t verify(const ReplicaConfig &, VeriPool &) override {
+        return promise_t([](promise_t &pm) { pm.resolve(true); });
+    }
 
     const uint256_t &get_blk_hash() const override { return blk_hash; }
 };
@@ -243,7 +252,7 @@ class SigSecp256k1: public Serializable {
     secp256k1_ecdsa_signature data;
     secp256k1_context_t ctx;
 
-    void check_msg_length(const bytearray_t &msg) {
+    static void check_msg_length(const bytearray_t &msg) {
         if (msg.size() != 32)
             throw std::invalid_argument("the message should be 32-bytes");
     }
@@ -291,7 +300,7 @@ class SigSecp256k1: public Serializable {
     }
 
     bool verify(const bytearray_t &msg, const PubKeySecp256k1 &pub_key,
-                const secp256k1_context_t &_ctx) {
+                const secp256k1_context_t &_ctx) const {
         check_msg_length(msg);
         return secp256k1_ecdsa_verify(
                 _ctx->ctx, &data,
@@ -301,6 +310,22 @@ class SigSecp256k1: public Serializable {
 
     bool verify(const bytearray_t &msg, const PubKeySecp256k1 &pub_key) {
         return verify(msg, pub_key, ctx);
+    }
+};
+
+class Secp256k1VeriTask: public VeriTask {
+    uint256_t msg;
+    PubKeySecp256k1 pubkey;
+    SigSecp256k1 sig;
+    public:
+    Secp256k1VeriTask(const uint256_t &msg,
+                        const PubKeySecp256k1 &pubkey,
+                        const SigSecp256k1 &sig):
+        msg(msg), pubkey(pubkey), sig(sig) {}
+    virtual ~Secp256k1VeriTask() = default;
+
+    bool verify() override {
+        return sig.verify(msg, pubkey, secp256k1_default_verify_ctx);
     }
 };
 
@@ -318,6 +343,12 @@ class PartCertSecp256k1: public SigSecp256k1, public PartCert {
         return SigSecp256k1::verify(blk_hash,
                                     static_cast<const PubKeySecp256k1 &>(pub_key),
                                     secp256k1_default_verify_ctx);
+    }
+
+    promise_t verify(const PubKey &pub_key, VeriPool &vpool) override {
+        return vpool.verify(new Secp256k1VeriTask(blk_hash,
+                static_cast<const PubKeySecp256k1 &>(pub_key),
+                static_cast<const SigSecp256k1 &>(*this)));
     }
 
     const uint256_t &get_blk_hash() const override { return blk_hash; }
@@ -357,6 +388,7 @@ class QuorumCertSecp256k1: public QuorumCert {
     void compute() override {}
 
     bool verify(const ReplicaConfig &config) override;
+    promise_t verify(const ReplicaConfig &config, VeriPool &vpool) override;
 
     const uint256_t &get_blk_hash() const override { return blk_hash; }
 

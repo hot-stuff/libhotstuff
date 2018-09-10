@@ -121,6 +121,7 @@ class HotStuffBase: public HotStuffCore {
     size_t blk_size;
     /** libevent handle */
     EventContext eb;
+    VeriPool vpool;
 
     private:
     /** whether libevent handle is owned by itself */
@@ -183,7 +184,8 @@ class HotStuffBase: public HotStuffCore {
             privkey_bt &&priv_key,
             NetAddr listen_addr,
             pacemaker_bt pmaker,
-            EventContext eb);
+            EventContext eb,
+            size_t nworker = 4);
 
     ~HotStuffBase();
 
