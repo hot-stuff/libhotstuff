@@ -179,6 +179,16 @@ class Block {
         return true;
     }
 
+    promise_t verify(const ReplicaConfig &config, VeriPool &vpool) const {
+        return (qc ? qc->verify(config, vpool) :
+        promise_t([](promise_t &pm) { pm.resolve(true); })).then([this](bool result) {
+            if (!result) return false;
+            for (auto cmd: cmds)
+                if (!cmd->verify()) return false;
+            return true;
+        });
+    }
+
     int8_t get_decision() const { return decision; }
 
     bool is_delivered() const { return delivered; }
@@ -223,11 +233,11 @@ class EntityStorage {
     }
 
     block_t add_blk(Block &&_blk, const ReplicaConfig &config) {
-        if (!_blk.verify(config))
-        {
-            HOTSTUFF_LOG_WARN("invalid %s", std::string(_blk).c_str());
-            return nullptr;
-        }
+        //if (!_blk.verify(config))
+        //{
+        //    HOTSTUFF_LOG_WARN("invalid %s", std::string(_blk).c_str());
+        //    return nullptr;
+        //}
         block_t blk = new Block(std::move(_blk));
         return blk_cache.insert(std::make_pair(blk->get_hash(), blk)).first->second;
     }

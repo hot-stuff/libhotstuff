@@ -243,6 +243,7 @@ promise_t HotStuffBase::async_deliver_blk(const uint256_t &blk_hash,
         /* the parents should be delivered */
         for (const auto &phash: blk->get_parent_hashes())
             pms.push_back(async_deliver_blk(phash, replica_id));
+        pms.push_back(blk->verify(get_config(), vpool));
         promise::all(pms).then([this, blk]() {
             on_deliver_blk(blk);
         });
@@ -267,12 +268,20 @@ void HotStuffBase::propose_handler(MsgPropose &&msg, Conn &conn) {
 void HotStuffBase::vote_handler(MsgVote &&msg, Conn &conn) {
     const NetAddr &peer = conn.get_peer();
     msg.postponed_parse(this);
-    auto &vote = msg.vote;
+    //auto &vote = msg.vote;
+    RcObj<Vote> v(new Vote(std::move(msg.vote)));
     promise::all(std::vector<promise_t>{
-        async_deliver_blk(vote.bqc_hash, peer),
-        async_deliver_blk(vote.blk_hash, peer)
-    }).then([this, vote = std::move(vote)]() {
-        on_receive_vote(vote);
+        async_deliver_blk(v->bqc_hash, peer),
+        async_deliver_blk(v->blk_hash, peer)
+    }).then([this, v=std::move(v)]() {
+        //bool result = vote->verify();
+        auto pm = v->verify(vpool);
+        pm.then([this, v=std::move(v)](bool result) {
+        if (!result)
+            LOG_WARN("invalid vote from %d", v->voter);
+        else
+            on_receive_vote(*v);
+        });
     });
 }
 
@@ -383,11 +392,13 @@ HotStuffBase::HotStuffBase(uint32_t blk_size,
                     privkey_bt &&priv_key,
                     NetAddr listen_addr,
                     pacemaker_bt pmaker,
-                    EventContext eb):
+                    EventContext eb,
+                    size_t nworker):
         HotStuffCore(rid, std::move(priv_key)),
         listen_addr(listen_addr),
         blk_size(blk_size),
         eb(eb),
+        vpool(eb, nworker),
         pn(eb),
         pmaker(std::move(pmaker)),
 
@@ -420,7 +431,10 @@ void HotStuffBase::do_vote(ReplicaID last_proposer, const Vote &vote) {
     pmaker->beat_resp(last_proposer)
             .then([this, vote](ReplicaID proposer) {
         if (proposer == get_id())
-            on_receive_vote(vote);
+        {
+            throw HotStuffError("unreachable line");
+            //on_receive_vote(vote);
+        }
         else
             pn.send_msg(MsgVote(vote), get_config().get_addr(proposer));
     });

@@ -20,5 +20,6 @@ include/hotstuff/config.h
 *.gch
 /Makefile
 /test/Makefile
-test_secp256k1
+/test/test_secp256k1
+/test/test_concurrent_queue
 core
