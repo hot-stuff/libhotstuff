@@ -26,10 +26,12 @@ struct MsgRespCmd {
     MsgRespCmd(const Finality &fin) {
         serialized << fin;
 #if HOTSTUFF_CMD_RESPSIZE > 0
-        serialized.put_data(payload, payload + HOTSTUFF_CMD_RESPSIZE);
+        serialized.put_data(payload, payload + sizeof(payload));
 #endif
     }
-    MsgRespCmd(DataStream &&s) { s >> fin; }
+    MsgRespCmd(DataStream &&s) {
+        s >> fin;
+    }
 };
 
 class CommandDummy: public Command {
@@ -39,32 +41,28 @@ class CommandDummy: public Command {
 #if HOTSTUFF_CMD_REQSIZE > 0
     uint8_t payload[HOTSTUFF_CMD_REQSIZE];
 #endif
-    uint256_t compute_hash() {
-        DataStream s;
-        s << cid << n;
-#if HOTSTUFF_CMD_REQSIZE > 0
-        s.put_data(payload, payload + HOTSTUFF_CMD_REQSIZE);
-#endif
-        return s.get_hash();
-    }
 
     public:
     CommandDummy() {}
     ~CommandDummy() override {}
 
     CommandDummy(uint32_t cid, uint32_t n):
-        cid(cid), n(n), hash(compute_hash()) {}
+        cid(cid), n(n), hash(salticidae::get_hash(*this)) {}
 
     void serialize(DataStream &s) const override {
         s << cid << n;
 #if HOTSTUFF_CMD_REQSIZE > 0
-        s.put_data(payload, payload + HOTSTUFF_CMD_REQSIZE);
+        s.put_data(payload, payload + sizeof(payload));
 #endif
     }
 
     void unserialize(DataStream &s) override {
         s >> cid >> n;
-        hash = compute_hash();
+#if HOTSTUFF_CMD_REQSIZE > 0
+        auto base = s.get_data_inplace(HOTSTUFF_CMD_REQSIZE);
+        memmove(payload, base, sizeof(payload));
+#endif
+        hash = salticidae::get_hash(*this);
     }
 
     const uint256_t &get_hash() const override {
