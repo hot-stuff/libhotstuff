@@ -79,7 +79,6 @@ using block_weak_t = salticidae::WeakObj<Block>;
 
 class Command: public Serializable {
     friend HotStuffCore;
-    block_weak_t container;
     public:
     virtual ~Command() = default;
     virtual const uint256_t &get_hash() const = 0;
@@ -105,7 +104,7 @@ get_hashes(const std::vector<Hashable> &plist) {
 class Block {
     friend HotStuffCore;
     std::vector<uint256_t> parent_hashes;
-    std::vector<command_t> cmds;
+    std::vector<uint256_t> cmds;
     quorum_cert_bt qc;
     bytearray_t extra;
 
@@ -135,7 +134,7 @@ class Block {
         delivered(delivered), decision(decision) {}
 
     Block(const std::vector<block_t> &parents,
-        const std::vector<command_t> &cmds,
+        const std::vector<uint256_t> &cmds,
         quorum_cert_bt &&qc,
         bytearray_t &&extra,
         uint32_t height,
@@ -158,7 +157,7 @@ class Block {
 
     void unserialize(DataStream &s, HotStuffCore *hsc);
 
-    const std::vector<command_t> &get_cmds() const {
+    const std::vector<uint256_t> &get_cmds() const {
         return cmds;
     }
 
@@ -174,19 +173,12 @@ class Block {
 
     bool verify(const ReplicaConfig &config) const {
         if (qc && !qc->verify(config)) return false;
-        for (auto cmd: cmds)
-            if (!cmd->verify()) return false;
         return true;
     }
 
     promise_t verify(const ReplicaConfig &config, VeriPool &vpool) const {
         return (qc ? qc->verify(config, vpool) :
-        promise_t([](promise_t &pm) { pm.resolve(true); })).then([this](bool result) {
-            if (!result) return false;
-            for (auto cmd: cmds)
-                if (!cmd->verify()) return false;
-            return true;
-        });
+        promise_t([](promise_t &pm) { pm.resolve(true); }));
     }
 
     int8_t get_decision() const { return decision; }
@@ -232,7 +224,7 @@ class EntityStorage {
         return blk_cache.count(blk_hash);
     }
 
-    block_t add_blk(Block &&_blk, const ReplicaConfig &config) {
+    block_t add_blk(Block &&_blk, const ReplicaConfig &/*config*/) {
         //if (!_blk.verify(config))
         //{
         //    HOTSTUFF_LOG_WARN("invalid %s", std::string(_blk).c_str());
@@ -288,8 +280,8 @@ class EntityStorage {
 #ifdef HOTSTUFF_PROTO_LOG
             HOTSTUFF_LOG_INFO("releasing blk %.10s", get_hex(blk_hash).c_str());
 #endif
-            for (const auto &cmd: blk->get_cmds())
-                try_release_cmd(cmd);
+//            for (const auto &cmd: blk->get_cmds())
+//                try_release_cmd(cmd);
             blk_cache.erase(blk_hash);
             return true;
         }

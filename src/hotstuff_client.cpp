@@ -31,13 +31,15 @@ size_t max_async_num;
 int max_iter_num;
 uint32_t cid;
 uint32_t cnt = 0;
+uint32_t nfaulty;
 
 struct Request {
     ReplicaID rid;
     command_t cmd;
+    size_t confirmed;
     salticidae::ElapsedTime et;
     Request(ReplicaID rid, const command_t &cmd):
-        rid(rid), cmd(cmd) { et.start(); }
+        rid(rid), cmd(cmd), confirmed(0) { et.start(); }
 };
 
 std::unordered_map<ReplicaID, MsgNetwork<opcode_t>::conn_t> conns;
@@ -46,18 +48,25 @@ std::vector<NetAddr> replicas;
 std::vector<std::pair<struct timeval, double>> elapsed;
 MsgNetwork<opcode_t> mn(eb, 10, 10, 4096);
 
+void connect_all() {
+    for (size_t i = 0; i < replicas.size(); i++)
+        conns.insert(std::make_pair(i, mn.connect(replicas[i])));
+}
+
 void set_proposer(ReplicaID rid) {
     proposer = rid;
-    auto it = conns.find(rid);
-    if (it == conns.end())
-        conns.insert(std::make_pair(rid, mn.connect(replicas[rid])));
+//    auto it = conns.find(rid);
+//    if (it == conns.end())
+//        conns.insert(std::make_pair(rid, mn.connect(replicas[rid])));
 }
 
 void try_send() {
     while (waiting.size() < max_async_num && max_iter_num)
     {
         auto cmd = new CommandDummy(cid, cnt++);
-        mn.send_msg(MsgReqCmd(*cmd), *conns.at(proposer));
+        //mn.send_msg(MsgReqCmd(*cmd), *conns.at(proposer));
+        for (auto &p: conns)
+            mn.send_msg(MsgReqCmd(*cmd), *(p.second));
 #ifndef HOTSTUFF_ENABLE_BENCHMARK
         HOTSTUFF_LOG_INFO("send new cmd %.10s",
                             get_hex(cmd->get_hash()).c_str());
@@ -77,23 +86,24 @@ void client_resp_cmd_handler(MsgRespCmd &&msg, MsgNetwork<opcode_t>::Conn &) {
     auto &et = it->second.et;
     if (it == waiting.end()) return;
     et.stop();
-    if (fin.rid != proposer)
-    {
-        HOTSTUFF_LOG_INFO("reconnect to the new proposer");
-        set_proposer(fin.rid);
-    }
-    if (fin.rid != it->second.rid)
-    {
-        mn.send_msg(MsgReqCmd(*(waiting.find(cmd_hash)->second.cmd)),
-                    *conns.at(proposer));
-#ifndef HOTSTUFF_ENABLE_BENCHMARK
-        HOTSTUFF_LOG_INFO("resend cmd %.10s",
-                            get_hex(cmd_hash).c_str());
-#endif
-        et.start();
-        it->second.rid = proposer;
-        return;
-    }
+//    if (fin.rid != proposer)
+//    {
+//        HOTSTUFF_LOG_INFO("reconnect to the new proposer");
+//        set_proposer(fin.rid);
+//    }
+//    if (fin.rid != it->second.rid)
+//    {
+//        mn.send_msg(MsgReqCmd(*(waiting.find(cmd_hash)->second.cmd)),
+//                    *conns.at(proposer));
+//#ifndef HOTSTUFF_ENABLE_BENCHMARK
+//        HOTSTUFF_LOG_INFO("resend cmd %.10s",
+//                            get_hex(cmd_hash).c_str());
+//#endif
+//        et.start();
+//        it->second.rid = proposer;
+//        return;
+//    }
+    if (++it->second.confirmed <= nfaulty) return; // wait for f + 1 ack
 #ifndef HOTSTUFF_ENABLE_BENCHMARK
     HOTSTUFF_LOG_INFO("got %s, wall: %.3f, cpu: %.3f",
                         std::string(fin).c_str(),
@@ -159,6 +169,9 @@ int main(int argc, char **argv) {
             replicas.push_back(NetAddr(NetAddr(_p.first).ip, htons(stoi(_p.second, &_))));
         }
 
+        nfaulty = (replicas.size() - 1) / 3;
+        HOTSTUFF_LOG_INFO("nfaulty = %zu", nfaulty);
+        connect_all();
         set_proposer(idx);
         try_send();
         eb.dispatch();

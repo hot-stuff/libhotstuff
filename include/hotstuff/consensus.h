@@ -84,7 +84,7 @@ class HotStuffCore {
     /** Call to submit new commands to be decided (executed). "Parents" must
      * contain at least one block, and the first block is the actual parent,
      * while the others are uncles/aunts */
-    void on_propose(const std::vector<command_t> &cmds,
+    void on_propose(const std::vector<uint256_t> &cmds,
                     const std::vector<block_t> &parents,
                     bytearray_t &&extra = bytearray_t());
 
@@ -118,7 +118,7 @@ class HotStuffCore {
     /** Create a quorum certificate from its serialized form. */
     virtual quorum_cert_bt parse_quorum_cert(DataStream &s) = 0;
     /** Create a command object from its serialized form. */
-    virtual command_t parse_cmd(DataStream &s) = 0;
+    //virtual command_t parse_cmd(DataStream &s) = 0;
 
     public:
     /** Add a replica to the current configuration. This should only be called
