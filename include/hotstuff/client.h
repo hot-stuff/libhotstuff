@@ -42,6 +42,9 @@ class CommandDummy: public Command {
     uint256_t compute_hash() {
         DataStream s;
         s << cid << n;
+#if HOTSTUFF_CMD_REQSIZE > 0
+        s << payload;
+#endif
         return s.get_hash();
     }
 
