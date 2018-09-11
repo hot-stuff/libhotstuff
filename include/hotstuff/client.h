@@ -43,7 +43,7 @@ class CommandDummy: public Command {
         DataStream s;
         s << cid << n;
 #if HOTSTUFF_CMD_REQSIZE > 0
-        s << payload;
+        s.put_data(payload, payload + HOTSTUFF_CMD_REQSIZE);
 #endif
         return s.get_hash();
     }
