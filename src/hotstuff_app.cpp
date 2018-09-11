@@ -61,11 +61,13 @@ class HotStuffApp: public HotStuff {
     /** The listen address for client RPC */
     NetAddr clisten_addr;
 
+    std::unordered_map<const uint256_t, promise_t> unconfirmed;
+
     using Conn = ClientNetwork<opcode_t>::Conn;
 
     void client_request_cmd_handler(MsgReqCmd &&, Conn &);
 
-    command_t parse_cmd(DataStream &s) override {
+    static command_t parse_cmd(DataStream &s) {
         auto cmd = new CommandDummy();
         s >> *cmd;
         return cmd;
@@ -81,6 +83,12 @@ class HotStuffApp: public HotStuff {
 #ifndef HOTSTUFF_ENABLE_BENCHMARK
         HOTSTUFF_LOG_INFO("replicated %s", std::string(fin).c_str());
 #endif
+        auto it = unconfirmed.find(fin.cmd_hash);
+        if (it != unconfirmed.end())
+        {
+            it->second.resolve(fin);
+            unconfirmed.erase(it);
+        }
     }
 
     public:
@@ -244,13 +252,26 @@ HotStuffApp::HotStuffApp(uint32_t blk_size,
 
 void HotStuffApp::client_request_cmd_handler(MsgReqCmd &&msg, Conn &conn) {
     const NetAddr addr = conn.get_addr();
-    msg.postponed_parse(this);
-    auto cmd = msg.cmd;
+    auto cmd = parse_cmd(msg.serialized);
+    const auto &cmd_hash = cmd->get_hash();
     std::vector<promise_t> pms;
     HOTSTUFF_LOG_DEBUG("processing %s", std::string(*cmd).c_str());
-    exec_command(cmd).then([this, addr](Finality fin) {
-        cn.send_msg(MsgRespCmd(fin), addr);
-    });
+    // record the data of the command
+    storage->add_cmd(cmd);
+    if (get_pace_maker().get_proposer() == get_id())
+        exec_command(cmd_hash).then([this, addr](Finality fin) {
+            cn.send_msg(MsgRespCmd(fin), addr);
+        });
+    else
+    {
+        auto it = unconfirmed.find(cmd_hash);
+        if (it == unconfirmed.end())
+            it = unconfirmed.insert(
+                std::make_pair(cmd_hash, promise_t([](promise_t &){}))).first;
+        it->second.then([this, addr](const Finality &fin) {
+            cn.send_msg(MsgRespCmd(std::move(fin)), addr);
+        });
+    }
 }
 
 void HotStuffApp::start() {

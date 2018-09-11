@@ -9,7 +9,7 @@ void Block::serialize(DataStream &s) const {
         s << hash;
     s << htole((uint32_t)cmds.size());
     for (auto cmd: cmds)
-        s << *cmd;
+        s << cmd;
     if (qc)
         s << (uint8_t)1 << *qc;
     else
@@ -29,7 +29,9 @@ void Block::unserialize(DataStream &s, HotStuffCore *hsc) {
     n = letoh(n);
     cmds.resize(n);
     for (auto &cmd: cmds)
-        cmd = hsc->parse_cmd(s);
+        s >> cmd;
+//    for (auto &cmd: cmds)
+//        cmd = hsc->parse_cmd(s);
     s >> flag;
     qc = flag ? hsc->parse_quorum_cert(s) : nullptr;
     s >> n;

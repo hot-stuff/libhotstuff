@@ -330,7 +330,7 @@ class PMStickyProposer: virtual public PaceMaker {
         /* FIXME: should extra data be the voter's id? */
         s << hsc->get_id();
         /* propose a block for leader election */
-        hsc->on_propose(std::vector<command_t>{},
+        hsc->on_propose(std::vector<uint256_t>{},
                 get_parents(), std::move(s));
     }
 
@@ -580,7 +580,7 @@ class PMRoundRobinProposer: virtual public PaceMaker {
         /* FIXME: should extra data be the voter's id? */
         s << hsc->get_id();
         /* propose a block for leader election */
-        hsc->on_propose(std::vector<command_t>{},
+        hsc->on_propose(std::vector<uint256_t>{},
                 get_parents(), std::move(s));
     }
 

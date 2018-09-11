@@ -58,8 +58,7 @@ void MsgRespBlock::postponed_parse(HotStuffCore *hsc) {
 }
 
 // TODO: improve this function
-promise_t HotStuffBase::exec_command(command_t cmd) {
-    const uint256_t &cmd_hash = cmd->get_hash();
+promise_t HotStuffBase::exec_command(uint256_t cmd_hash) {
     ReplicaID proposer = pmaker->get_proposer();
 
     if (proposer != get_id())
@@ -71,13 +70,13 @@ promise_t HotStuffBase::exec_command(command_t cmd) {
     auto it = decision_waiting.find(cmd_hash);
     if (it == decision_waiting.end())
     {
-        cmd_pending.push(storage->add_cmd(cmd));
+        cmd_pending.push(cmd_hash);
         it = decision_waiting.insert(std::make_pair(cmd_hash, promise_t())).first;
     }
 
     if (cmd_pending.size() >= blk_size)
     {
-        std::vector<command_t> cmds;
+        std::vector<uint256_t> cmds;
         for (uint32_t i = 0; i < blk_size; i++)
         {
             cmds.push_back(cmd_pending.front());
@@ -86,9 +85,8 @@ promise_t HotStuffBase::exec_command(command_t cmd) {
         pmaker->beat().then([this, cmds = std::move(cmds)](ReplicaID proposer) {
             if (proposer != get_id())
             {
-                for (auto &cmd: cmds)
+                for (auto &cmd_hash: cmds)
                 {
-                    const auto &cmd_hash = cmd->get_hash();
                     auto it = decision_waiting.find(cmd_hash);
                     if (it != decision_waiting.end())
                     {
@@ -119,23 +117,13 @@ void HotStuffBase::on_fetch_blk(const block_t &blk) {
     LOG_DEBUG("fetched %.10s", get_hex(blk->get_hash()).c_str());
     part_fetched++;
     fetched++;
-    for (auto cmd: blk->get_cmds()) on_fetch_cmd(cmd);
+    //for (auto cmd: blk->get_cmds()) on_fetch_cmd(cmd);
     const uint256_t &blk_hash = blk->get_hash();
     auto it = blk_fetch_waiting.find(blk_hash);
     if (it != blk_fetch_waiting.end())
     {
         it->second.resolve(blk);
         blk_fetch_waiting.erase(it);
-    }
-}
-
-void HotStuffBase::on_fetch_cmd(const command_t &cmd) {
-    const uint256_t &cmd_hash = cmd->get_hash();
-    auto it = cmd_fetch_waiting.find(cmd_hash);
-    if (it != cmd_fetch_waiting.end())
-    {
-        it->second.resolve(cmd);
-        cmd_fetch_waiting.erase(it);
     }
 }
 
@@ -198,24 +186,6 @@ promise_t HotStuffBase::async_fetch_blk(const uint256_t &blk_hash,
             std::make_pair(
                 blk_hash,
                 BlockFetchContext(blk_hash, this))).first;
-    }
-    if (replica_id != nullptr)
-        it->second.add_replica(*replica_id, fetch_now);
-    return static_cast<promise_t &>(it->second);
-}
-
-promise_t HotStuffBase::async_fetch_cmd(const uint256_t &cmd_hash,
-                                    const NetAddr *replica_id,
-                                    bool fetch_now) {
-    if (storage->is_cmd_fetched(cmd_hash))
-        return promise_t([this, &cmd_hash](promise_t pm){
-            pm.resolve(storage->find_cmd(cmd_hash));
-        });
-    auto it = cmd_fetch_waiting.find(cmd_hash);
-    if (it == cmd_fetch_waiting.end())
-    {
-        it = cmd_fetch_waiting.insert(
-            std::make_pair(cmd_hash, CmdFetchContext(cmd_hash, this))).first;
     }
     if (replica_id != nullptr)
         it->second.add_replica(*replica_id, fetch_now);
@@ -313,7 +283,6 @@ void HotStuffBase::print_stat() const {
     LOG_INFO("-------- queues -------");
     LOG_INFO("blk_fetch_waiting: %lu", blk_fetch_waiting.size());
     LOG_INFO("blk_delivery_waiting: %lu", blk_delivery_waiting.size());
-    LOG_INFO("cmd_fetch_waiting: %lu", cmd_fetch_waiting.size());
     LOG_INFO("decision_waiting: %lu", decision_waiting.size());
     LOG_INFO("-------- misc ---------");
     LOG_INFO("fetched: %lu", fetched);

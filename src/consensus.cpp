@@ -50,8 +50,6 @@ bool HotStuffCore::on_deliver_blk(const block_t &blk) {
     for (const auto &hash: blk->parent_hashes)
         blk->parents.push_back(get_delivered_blk(hash));
     blk->height = blk->parents[0]->height + 1;
-    for (const auto &cmd: blk->cmds)
-        cmd->container = blk;
 
     if (blk->qc)
     {
@@ -97,7 +95,7 @@ void HotStuffCore::check_commit(const block_t &_blk) {
         size_t idx = 0;
         for (auto cmd: blk->cmds)
             do_decide(Finality(id, 1, idx, blk->height,
-                                cmd->get_hash(), blk->get_hash()));
+                                cmd, blk->get_hash()));
     }
     bexec = p;
 }
@@ -114,7 +112,7 @@ bool HotStuffCore::update(const uint256_t &bqc_hash) {
     return true;
 }
 
-void HotStuffCore::on_propose(const std::vector<command_t> &cmds,
+void HotStuffCore::on_propose(const std::vector<uint256_t> &cmds,
                             const std::vector<block_t> &parents,
                             bytearray_t &&extra) {
     if (parents.empty())

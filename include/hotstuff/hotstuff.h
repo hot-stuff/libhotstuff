@@ -135,9 +135,8 @@ class HotStuffBase: public HotStuffCore {
     /* queues for async tasks */
     std::unordered_map<const uint256_t, BlockFetchContext> blk_fetch_waiting;
     std::unordered_map<const uint256_t, BlockDeliveryContext> blk_delivery_waiting;
-    std::unordered_map<const uint256_t, CmdFetchContext> cmd_fetch_waiting;
     std::unordered_map<const uint256_t, promise_t> decision_waiting;
-    std::queue<command_t> cmd_pending;
+    std::queue<uint256_t> cmd_pending;
 
     /* statistics */
     uint64_t fetched;
@@ -192,7 +191,7 @@ class HotStuffBase: public HotStuffCore {
     /* the API for HotStuffBase */
 
     /* Submit the command to be decided. */
-    promise_t exec_command(command_t cmd);
+    promise_t exec_command(uint256_t cmd);
     void add_replica(ReplicaID idx, const NetAddr &addr, pubkey_bt &&pub_key);
     void start(bool eb_loop = false);
 

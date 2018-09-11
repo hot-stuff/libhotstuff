@@ -12,25 +12,32 @@ struct MsgReqCmd {
     static const opcode_t opcode = 0x4;
     DataStream serialized;
     command_t cmd;
-    MsgReqCmd(const Command &cmd);
+    MsgReqCmd(const Command &cmd) { serialized << cmd; }
     MsgReqCmd(DataStream &&s): serialized(std::move(s)) {}
-    void postponed_parse(HotStuffCore *hsc);
 };
 
 struct MsgRespCmd {
     static const opcode_t opcode = 0x5;
     DataStream serialized;
+#if HOTSTUFF_CMD_RESPSIZE > 0
+    uint8_t payload[HOTSTUFF_CMD_RESPSIZE];
+#endif
     Finality fin;
-    MsgRespCmd(const Finality &fin);
-    MsgRespCmd(DataStream &&s);
+    MsgRespCmd(const Finality &fin) {
+        serialized << fin;
+#if HOTSTUFF_CMD_RESPSIZE > 0
+        serialized.put_data(payload, payload + HOTSTUFF_CMD_RESPSIZE);
+#endif
+    }
+    MsgRespCmd(DataStream &&s) { s >> fin; }
 };
 
 class CommandDummy: public Command {
     uint32_t cid;
     uint32_t n;
     uint256_t hash;
-#if HOTSTUFF_CMD_DMSIZE > 0
-    uint8_t payload[HOTSTUFF_CMD_DMSIZE];
+#if HOTSTUFF_CMD_REQSIZE > 0
+    uint8_t payload[HOTSTUFF_CMD_REQSIZE];
 #endif
     uint256_t compute_hash() {
         DataStream s;
@@ -47,17 +54,13 @@ class CommandDummy: public Command {
 
     void serialize(DataStream &s) const override {
         s << cid << n;
-#if HOTSTUFF_CMD_DMSIZE > 0
-        s.put_data(payload, payload + HOTSTUFF_CMD_DMSIZE);
+#if HOTSTUFF_CMD_REQSIZE > 0
+        s.put_data(payload, payload + HOTSTUFF_CMD_REQSIZE);
 #endif
     }
 
     void unserialize(DataStream &s) override {
         s >> cid >> n;
-#if HOTSTUFF_CMD_DMSIZE > 0
-        auto base = s.get_data_inplace(HOTSTUFF_CMD_DMSIZE);
-        memmove(payload, base, HOTSTUFF_CMD_DMSIZE);
-#endif
         hash = compute_hash();
     }
 
