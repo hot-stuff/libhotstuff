@@ -65,8 +65,8 @@ void try_send() {
     {
         auto cmd = new CommandDummy(cid, cnt++);
         //mn.send_msg(MsgReqCmd(*cmd), *conns.at(proposer));
-        for (auto &p: conns)
-            mn.send_msg(MsgReqCmd(*cmd), *(p.second));
+        MsgReqCmd msg(*cmd);
+        for (auto &p: conns) mn.send_msg(msg, *(p.second));
 #ifndef HOTSTUFF_ENABLE_BENCHMARK
         HOTSTUFF_LOG_INFO("send new cmd %.10s",
                             get_hex(cmd->get_hash()).c_str());
@@ -103,7 +103,7 @@ void client_resp_cmd_handler(MsgRespCmd &&msg, MsgNetwork<opcode_t>::Conn &) {
 //        it->second.rid = proposer;
 //        return;
 //    }
-    if (++it->second.confirmed <= nfaulty) return; // wait for f + 1 ack
+//    if (++it->second.confirmed <= nfaulty) return; // wait for f + 1 ack
 #ifndef HOTSTUFF_ENABLE_BENCHMARK
     HOTSTUFF_LOG_INFO("got %s, wall: %.3f, cpu: %.3f",
                         std::string(fin).c_str(),

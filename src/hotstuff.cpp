@@ -410,6 +410,7 @@ void HotStuffBase::do_vote(ReplicaID last_proposer, const Vote &vote) {
 }
 
 void HotStuffBase::do_decide(Finality &&fin) {
+    part_decided++;
     state_machine_execute(fin);
     auto it = decision_waiting.find(fin.cmd_hash);
     if (it != decision_waiting.end())
