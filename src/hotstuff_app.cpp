@@ -83,12 +83,12 @@ class HotStuffApp: public HotStuff {
 #ifndef HOTSTUFF_ENABLE_BENCHMARK
         HOTSTUFF_LOG_INFO("replicated %s", std::string(fin).c_str());
 #endif
-        auto it = unconfirmed.find(fin.cmd_hash);
-        if (it != unconfirmed.end())
-        {
-            it->second.resolve(fin);
-            unconfirmed.erase(it);
-        }
+        //auto it = unconfirmed.find(fin.cmd_hash);
+        //if (it != unconfirmed.end())
+        //{
+        //    it->second.resolve(fin);
+        //    unconfirmed.erase(it);
+        //}
     }
 
     public:
@@ -264,13 +264,13 @@ void HotStuffApp::client_request_cmd_handler(MsgReqCmd &&msg, Conn &conn) {
         });
     else
     {
-        auto it = unconfirmed.find(cmd_hash);
-        if (it == unconfirmed.end())
-            it = unconfirmed.insert(
-                std::make_pair(cmd_hash, promise_t([](promise_t &){}))).first;
-        it->second.then([this, addr](const Finality &fin) {
-            cn.send_msg(MsgRespCmd(std::move(fin)), addr);
-        });
+        //auto it = unconfirmed.find(cmd_hash);
+        //if (it == unconfirmed.end())
+        //    it = unconfirmed.insert(
+        //        std::make_pair(cmd_hash, promise_t([](promise_t &){}))).first;
+        //it->second.then([this, addr](const Finality &fin) {
+        //    cn.send_msg(MsgRespCmd(std::move(fin)), addr);
+        //});
     }
 }
 
