@@ -36,7 +36,7 @@ promise_t QuorumCertSecp256k1::verify(const ReplicaConfig &config, VeriPool &vpo
         {
             HOTSTUFF_LOG_DEBUG("checking cert(%d), blk_hash=%s",
                                 i, get_hex10(blk_hash).c_str());
-            vpm.push_back(vpool.verify(new Secp256k1VeriTask(blk_hash,
+            vpm.push_back(vpool.submit(new Secp256k1VeriTask(blk_hash,
                             static_cast<const PubKeySecp256k1 &>(config.get_pubkey(i)),
                             sigs[i])));
         }

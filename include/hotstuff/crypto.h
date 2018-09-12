@@ -10,6 +10,10 @@
 
 namespace hotstuff {
 
+using VeriPool = TaskPool<bool>;
+using VeriTask = VeriPool::Task;
+using veritask_bt = BoxObj<VeriTask>;
+
 using salticidae::SHA256;
 
 class PubKey: public Serializable, Cloneable {
@@ -53,6 +57,10 @@ class QuorumCert: public Serializable, public Cloneable {
 
 using part_cert_bt = BoxObj<PartCert>;
 using quorum_cert_bt = BoxObj<QuorumCert>;
+
+using SignPool = TaskPool<PartCert *>;
+using SignTask = SignPool::Task;
+using signtask_bt = BoxObj<SignTask>;
 
 class PubKeyDummy: public PubKey {
     PubKeyDummy *clone() override { return new PubKeyDummy(*this); }
@@ -324,7 +332,7 @@ class Secp256k1VeriTask: public VeriTask {
         msg(msg), pubkey(pubkey), sig(sig) {}
     virtual ~Secp256k1VeriTask() = default;
 
-    bool verify() override {
+    bool work() override {
         return sig.verify(msg, pubkey, secp256k1_default_verify_ctx);
     }
 };
@@ -346,7 +354,7 @@ class PartCertSecp256k1: public SigSecp256k1, public PartCert {
     }
 
     promise_t verify(const PubKey &pub_key, VeriPool &vpool) override {
-        return vpool.verify(new Secp256k1VeriTask(blk_hash,
+        return vpool.submit(new Secp256k1VeriTask(blk_hash,
                 static_cast<const PubKeySecp256k1 &>(pub_key),
                 static_cast<const SigSecp256k1 &>(*this)));
     }
@@ -406,6 +414,21 @@ class QuorumCertSecp256k1: public QuorumCert {
         s >> blk_hash >> rids;
         for (size_t i = 0; i < rids.size(); i++)
             if (rids.get(i)) s >> sigs[i];
+    }
+};
+
+template<typename PartCertType, typename PrivKeyType>
+class PartCertSignTask: public SignTask {
+    const PrivKey &priv_key;
+    uint256_t blk_hash;
+
+    public:
+    PartCertSignTask(const PrivKey &priv_key,
+                    const uint256_t &blk_hash):
+        priv_key(priv_key), blk_hash(blk_hash) {}
+
+    PartCert *work() override {
+        return new PartCertType(static_cast<const PrivKeyType &>(priv_key), blk_hash);
     }
 };
 

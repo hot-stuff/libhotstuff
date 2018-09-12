@@ -368,6 +368,7 @@ HotStuffBase::HotStuffBase(uint32_t blk_size,
         blk_size(blk_size),
         eb(eb),
         vpool(eb, nworker),
+        spool(eb, 1),
         pn(eb),
         pmaker(std::move(pmaker)),
 

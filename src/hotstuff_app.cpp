@@ -158,7 +158,7 @@ int main(int argc, char **argv) {
 
     EventContext ec;
 #ifdef HOTSTUFF_NORMAL_LOG
-    try {
+    //try {
 #endif
         config.parse(argc, argv);
         if (opt_help->get())
@@ -220,10 +220,10 @@ int main(int argc, char **argv) {
         }
         papp->start();
 #ifdef HOTSTUFF_NORMAL_LOG
-    } catch (std::exception &e) {
-        HOTSTUFF_LOG_INFO("exception: %s", e.what());
-        elapsed.stop(true);
-    }
+    //} catch (std::exception &e) {
+    //    HOTSTUFF_LOG_INFO("exception: %s", e.what());
+    //    elapsed.stop(true);
+    //}
 #endif
     return 0;
 }

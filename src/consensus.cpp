@@ -140,18 +140,19 @@ void HotStuffCore::on_propose(const std::vector<uint256_t> &cmds,
     bnew->self_qc = create_quorum_cert(bnew_hash);
     on_deliver_blk(bnew);
     update(bnew_hash);
-    Proposal prop(id, bqc->get_hash(), bnew, nullptr);
     LOG_PROTO("propose %s", std::string(*bnew).c_str());
     /* self-vote */
     if (bnew->height <= vheight)
         throw std::runtime_error("new block should be higher than vheight");
     vheight = bnew->height;
-    on_receive_vote(
-        Vote(id, bqc->get_hash(), bnew_hash,
-            create_part_cert(*priv_key, bnew_hash), this));
-    on_propose_(prop);
-    /* boradcast to other replicas */
-    do_broadcast_proposal(prop);
+    create_part_cert(*priv_key, bnew_hash).then([this, bnew, bnew_hash](PartCert *pcert) {
+        Proposal prop(id, bqc->get_hash(), bnew, nullptr);
+        on_receive_vote(
+            Vote(id, bqc->get_hash(), bnew_hash, pcert, this));
+        on_propose_(prop);
+        /* boradcast to other replicas */
+        do_broadcast_proposal(prop);
+    });
 }
 
 void HotStuffCore::on_receive_proposal(const Proposal &prop) {
@@ -177,14 +178,16 @@ void HotStuffCore::on_receive_proposal(const Proposal &prop) {
     if (bnew->qc_ref)
         on_qc_finish(bnew->qc_ref);
     on_receive_proposal_(prop);
-    do_vote(prop.proposer,
-        Vote(id,
-            bqc->get_hash(),
-            bnew->get_hash(),
-            ((opinion && !neg_vote) ?
+    ((opinion && !neg_vote) ?
                 create_part_cert(*priv_key, bnew->get_hash()) :
-                nullptr),
-            this));
+                promise_t([](promise_t &pm){ pm.resolve(nullptr); })).then([this, bnew, p=prop.proposer](PartCert *pcert) {
+        do_vote(p,
+            Vote(id,
+                bqc->get_hash(),
+                bnew->get_hash(),
+                pcert,
+                this));
+    });
 }
 
 void HotStuffCore::on_receive_vote(const Vote &vote) {

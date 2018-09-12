@@ -122,6 +122,7 @@ class HotStuffBase: public HotStuffCore {
     /** libevent handle */
     EventContext eb;
     VeriPool vpool;
+    SignPool spool;
 
     private:
     /** whether libevent handle is owned by itself */
@@ -217,12 +218,10 @@ class HotStuff: public HotStuffBase {
     using HotStuffBase::HotStuffBase;
     protected:
 
-    part_cert_bt create_part_cert(const PrivKey &priv_key, const uint256_t &blk_hash) override {
+    promise_t create_part_cert(const PrivKey &priv_key, const uint256_t &blk_hash) override {
         HOTSTUFF_LOG_DEBUG("create part cert with priv=%s, blk_hash=%s",
                             get_hex10(priv_key).c_str(), get_hex10(blk_hash).c_str());
-        return new PartCertType(
-                    static_cast<const PrivKeyType &>(priv_key),
-                    blk_hash);
+        return spool.submit(new PartCertSignTask<PartCertType, PrivKeyType>(priv_key, blk_hash));
     }
 
     part_cert_bt parse_part_cert(DataStream &s) override {

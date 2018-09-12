@@ -110,7 +110,7 @@ class HotStuffCore {
      * polymorphic data types. */
     public:
     /** Create a partial certificate that proves the vote for a block. */
-    virtual part_cert_bt create_part_cert(const PrivKey &priv_key, const uint256_t &blk_hash) = 0;
+    virtual promise_t create_part_cert(const PrivKey &priv_key, const uint256_t &blk_hash) = 0;
     /** Create a partial certificate from its seralized form. */
     virtual part_cert_bt parse_part_cert(DataStream &s) = 0;
     /** Create a quorum certificate that proves 2f+1 votes for a block. */
