@@ -64,9 +64,9 @@ void try_send() {
     while (waiting.size() < max_async_num && max_iter_num)
     {
         auto cmd = new CommandDummy(cid, cnt++);
-        //mn.send_msg(MsgReqCmd(*cmd), *conns.at(proposer));
-        MsgReqCmd msg(*cmd);
-        for (auto &p: conns) mn.send_msg(msg, *(p.second));
+        mn.send_msg(MsgReqCmd(*cmd), *conns.at(proposer));
+        //MsgReqCmd msg(*cmd);
+        //for (auto &p: conns) mn.send_msg(msg, *(p.second));
 #ifndef HOTSTUFF_ENABLE_BENCHMARK
         HOTSTUFF_LOG_INFO("send new cmd %.10s",
                             get_hex(cmd->get_hash()).c_str());
