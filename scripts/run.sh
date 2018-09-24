@@ -22,6 +22,7 @@ fin_keyword="error:"  # the keyword indicating completion of execution
 fin_chk_period=1
 fin_chk_skip_pat='^([A-O][0-9]*)|(_ctl)$'
 force_peer_list=0
+async_num=128
 
 function join { local IFS="$1"; shift; echo "$*"; }
 function split {
@@ -213,7 +214,12 @@ function start_all {
     get_server_map "$workdir/server_map.txt"
     echo "copying configuration file"
     rsync -avP "$conf_src" "$tmpldir/$proj_conf_name"
-    for rid in "${!nodes[@]}"; do
+    echo "${node_list[@]}"
+    cnt="${#nodes[@]}"
+    #for rid in "${!nodes[@]}"; do
+    rid=0
+    c=0
+    while [[ "$rid" -lt "$cnt" ]]; do
         local node_tmpldir="$workdir/$rid"
         local ip="$(get_ip_by_id $rid)"
         ip="${server_map[$ip]:-$ip}"
@@ -234,9 +240,18 @@ function start_all {
         _remote_load "$workdir" "$rworkdir" "$ip" "$rid" "${extra_conf[@]}"
         echo "$rid loaded"
         ) &
+        let rid++
+        let c++
+        if [[ "$c" -eq "$async_num" ]]; then
+            c=0
+            wait
+        fi
     done
     wait
-    for rid in "${!nodes[@]}"; do
+    rid=0
+    c=0
+    #for rid in "${!nodes[@]}"; do
+    while [[ "$rid" -lt "$cnt" ]]; do
         local ip="$(get_ip_by_id $rid)"
         ip="${server_map[$ip]:-$ip}"
         local pport="$(get_peer_port_by_id $rid)"
@@ -247,6 +262,12 @@ function start_all {
         _remote_start "$workdir" "$rworkdir" "$rid" "$ip" "$cport"
         echo "$rid started"
         ) &
+        let rid++
+        let c++
+        if [[ "$c" -eq "$async_num" ]]; then
+            c=0
+            wait
+        fi
     done
     wait
 }
@@ -256,6 +277,9 @@ function fetch_all {
     get_node_info "$workdir/peer_list.txt"
     get_server_map "$workdir/server_map.txt"
     for rid in "${!nodes[@]}"; do
+        #if [[ "$rid" != 0 ]]; then
+        #    continue
+        #fi
         local ip="$(get_ip_by_id $rid)"
         ip="${server_map[$ip]:-$ip}"
         local port="$(get_peer_port_by_id $rid)"
@@ -272,13 +296,23 @@ function exec_all {
     local cmd="$2"
     get_node_info "$workdir/peer_list.txt"
     get_server_map "$workdir/server_map.txt"
-    for rid in "${!nodes[@]}"; do
+    cnt="${#nodes[@]}"
+    rid=0
+    c=0
+    #for rid in "${!nodes[@]}"; do
+    while [[ "$rid" -lt "$cnt" ]]; do
         local ip="$(get_ip_by_id $rid)"
         ip="${server_map[$ip]:-$ip}"
         local port="$(get_peer_port_by_id $rid)"
         local rworkdir="$remote_base/$workdir/${rid}"
         local msg="Executing $rid @ $ip, $port "
         _remote_exec "$workdir" "$rworkdir" "$ip" "$cmd" && echo "$msg: succeeded" || echo "$msg: failed" &
+        let rid++
+        let c++
+        if [[ "$c" -eq "$async_num" ]]; then
+            c=0
+            wait
+        fi
     done
     wait
 }
@@ -307,7 +341,11 @@ function status_all {
     local workdir="$1"
     get_node_info "$workdir/peer_list.txt"
     get_server_map "$workdir/server_map.txt"
-    for rid in "${!nodes[@]}"; do
+    cnt="${#nodes[@]}"
+    rid=0
+    c=0
+    #for rid in "${!nodes[@]}"; do
+    while [[ "$rid" -lt "$cnt" ]]; do
         local ip="$(get_ip_by_id $rid)"
         ip="${server_map[$ip]:-$ip}"
         local port="$(get_peer_port_by_id $rid)"
@@ -315,6 +353,12 @@ function status_all {
         local pid="$(cat $workdir/${rid}.pid)"
         local msg="$rid @ $ip, $port "
         _remote_status "$workdir" "$rworkdir" "$ip" "$pid" && echo "$msg: running" || echo "$msg: dead" &
+        let rid++
+        let c++
+        if [[ "$c" -eq "$async_num" ]]; then
+            c=0
+            wait
+        fi
     done
     wait
 }
