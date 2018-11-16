@@ -39,7 +39,7 @@ section may be incomplete and subject to changes.
 ::
 
     # install from the repo
-    git clone https://github.com/Determinant/hot-stuff.git
+    git clone https://github.com/hot-stuff/hot-stuff.git
     cd hot-stuff/
     git submodule update --init --recursive
 
