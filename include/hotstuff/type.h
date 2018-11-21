@@ -24,7 +24,8 @@ using salticidae::bytearray_t;
 using salticidae::get_hash;
 
 using salticidae::NetAddr;
-using salticidae::Event;
+using salticidae::TimerEvent;
+using salticidae::FdEvent;
 using salticidae::EventContext;
 using promise::promise_t;
 

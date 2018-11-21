@@ -21,7 +21,7 @@ using veritask_ut = BoxObj<VeriTask>;
 class VeriPool {
     using queue_t = moodycamel::BlockingConcurrentQueue<VeriTask *>;
     int fin_fd[2];
-    Event fin_ev;
+    FdEvent fin_ev;
     queue_t in_queue;
     queue_t out_queue;
     std::thread notifier;
@@ -30,7 +30,7 @@ class VeriPool {
     public:
     VeriPool(EventContext ec, size_t nworker) {
         pipe(fin_fd);
-        fin_ev = Event(ec, fin_fd[0], EV_READ, [&](int fd, short) {
+        fin_ev = FdEvent(ec, fin_fd[0], [&](int fd, short) {
             VeriTask *task;
             bool result;
             read(fd, &task, sizeof(VeriTask *));
@@ -38,9 +38,9 @@ class VeriPool {
             auto it = pms.find(task);
             it->second.second.resolve(result);
             pms.erase(it);
-            fin_ev.add();
+            fin_ev.add(FdEvent::READ);
         });
-        fin_ev.add();
+        fin_ev.add(FdEvent::READ);
         // finish notifier thread
         notifier = std::thread([this]() {
             while (true)

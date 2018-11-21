@@ -29,7 +29,7 @@ using salticidae::static_pointer_cast;
 using salticidae::trim_all;
 using salticidae::split;
 
-using hotstuff::Event;
+using hotstuff::TimerEvent;
 using hotstuff::EventContext;
 using hotstuff::NetAddr;
 using hotstuff::HotStuffError;
@@ -55,17 +55,17 @@ class HotStuffApp: public HotStuff {
     /** Network messaging between a replica and its client. */
     ClientNetwork<opcode_t> cn;
     /** Timer object to schedule a periodic printing of system statistics */
-    Event ev_stat_timer;
+    TimerEvent ev_stat_timer;
     /** Timer object to monitor the progress for simple impeachment */
-    Event impeach_timer;
+    TimerEvent impeach_timer;
     /** The listen address for client RPC */
     NetAddr clisten_addr;
 
     std::unordered_map<const uint256_t, promise_t> unconfirmed;
 
-    using Conn = ClientNetwork<opcode_t>::Conn;
+    using conn_t = ClientNetwork<opcode_t>::conn_t;
 
-    void client_request_cmd_handler(MsgReqCmd &&, Conn &);
+    void client_request_cmd_handler(MsgReqCmd &&, const conn_t &);
 
     static command_t parse_cmd(DataStream &s) {
         auto cmd = new CommandDummy();
@@ -75,7 +75,7 @@ class HotStuffApp: public HotStuff {
 
     void reset_imp_timer() {
         impeach_timer.del();
-        impeach_timer.add_with_timeout(impeach_timeout);
+        impeach_timer.add(impeach_timeout);
     }
 
     void state_machine_execute(const Finality &fin) override {
@@ -113,10 +113,6 @@ std::pair<std::string, std::string> split_ip_port_cport(const std::string &s) {
     return std::make_pair(ret[0], ret[1]);
 }
 
-void signal_handler(int) {
-    throw HotStuffError("got terminal signal");
-}
-
 salticidae::BoxObj<HotStuffApp> papp = nullptr;
 
 int main(int argc, char **argv) {
@@ -124,9 +120,6 @@ int main(int argc, char **argv) {
 
     ElapsedTime elapsed;
     elapsed.start();
-
-    signal(SIGTERM, signal_handler);
-    signal(SIGINT, signal_handler);
 
     auto opt_blk_size = Config::OptValInt::create(1);
     auto opt_parent_limit = Config::OptValInt::create(-1);
@@ -157,74 +150,72 @@ int main(int argc, char **argv) {
     config.add_opt("help", opt_help, Config::SWITCH_ON, 'h', "show this help info");
 
     EventContext ec;
-#ifdef HOTSTUFF_NORMAL_LOG
-    try {
-#endif
-        config.parse(argc, argv);
-        if (opt_help->get())
-        {
-            config.print_help();
-            exit(0);
-        }
-        auto idx = opt_idx->get();
-        auto client_port = opt_client_port->get();
-        std::vector<std::pair<std::string, std::string>> replicas;
-        for (const auto &s: opt_replicas->get())
-        {
-            auto res = trim_all(split(s, ","));
-            if (res.size() != 2)
-                throw HotStuffError("invalid replica info");
-            replicas.push_back(std::make_pair(res[0], res[1]));
-        }
-
-        if (!(0 <= idx && (size_t)idx < replicas.size()))
-            throw HotStuffError("replica idx out of range");
-        std::string binding_addr = replicas[idx].first;
-        if (client_port == -1)
-        {
-            auto p = split_ip_port_cport(binding_addr);
-            size_t idx;
-            try {
-                client_port = stoi(p.second, &idx);
-            } catch (std::invalid_argument &) {
-                throw HotStuffError("client port not specified");
-            }
-        }
-
-        NetAddr plisten_addr{split_ip_port_cport(binding_addr).first};
-
-        auto parent_limit = opt_parent_limit->get();
-        hotstuff::pacemaker_bt pmaker;
-        if (opt_pace_maker->get() == "sticky")
-            pmaker = new hotstuff::PaceMakerSticky(parent_limit, opt_qc_timeout->get(), ec);
-        else if (opt_pace_maker->get() == "rr")
-            pmaker = new hotstuff::PaceMakerRR(parent_limit, opt_qc_timeout->get(), ec);
-        else
-            pmaker = new hotstuff::PaceMakerDummyFixed(opt_fixed_proposer->get(), parent_limit);
-
-        papp = new HotStuffApp(opt_blk_size->get(),
-                            opt_stat_period->get(),
-                            opt_imp_timeout->get(),
-                            idx,
-                            hotstuff::from_hex(opt_privkey->get()),
-                            plisten_addr,
-                            NetAddr("0.0.0.0", client_port),
-                            std::move(pmaker),
-                            ec,
-                            opt_nworker->get());
-        for (size_t i = 0; i < replicas.size(); i++)
-        {
-            auto p = split_ip_port_cport(replicas[i].first);
-            papp->add_replica(i, NetAddr(p.first),
-                                hotstuff::from_hex(replicas[i].second));
-        }
-        papp->start();
-#ifdef HOTSTUFF_NORMAL_LOG
-    } catch (std::exception &e) {
-        HOTSTUFF_LOG_INFO("exception: %s", e.what());
-        elapsed.stop(true);
+    config.parse(argc, argv);
+    if (opt_help->get())
+    {
+        config.print_help();
+        exit(0);
     }
-#endif
+    auto idx = opt_idx->get();
+    auto client_port = opt_client_port->get();
+    std::vector<std::pair<std::string, std::string>> replicas;
+    for (const auto &s: opt_replicas->get())
+    {
+        auto res = trim_all(split(s, ","));
+        if (res.size() != 2)
+            throw HotStuffError("invalid replica info");
+        replicas.push_back(std::make_pair(res[0], res[1]));
+    }
+
+    if (!(0 <= idx && (size_t)idx < replicas.size()))
+        throw HotStuffError("replica idx out of range");
+    std::string binding_addr = replicas[idx].first;
+    if (client_port == -1)
+    {
+        auto p = split_ip_port_cport(binding_addr);
+        size_t idx;
+        try {
+            client_port = stoi(p.second, &idx);
+        } catch (std::invalid_argument &) {
+            throw HotStuffError("client port not specified");
+        }
+    }
+
+    NetAddr plisten_addr{split_ip_port_cport(binding_addr).first};
+
+    auto parent_limit = opt_parent_limit->get();
+    hotstuff::pacemaker_bt pmaker;
+    if (opt_pace_maker->get() == "sticky")
+        pmaker = new hotstuff::PaceMakerSticky(parent_limit, opt_qc_timeout->get(), ec);
+    else if (opt_pace_maker->get() == "rr")
+        pmaker = new hotstuff::PaceMakerRR(parent_limit, opt_qc_timeout->get(), ec);
+    else
+        pmaker = new hotstuff::PaceMakerDummyFixed(opt_fixed_proposer->get(), parent_limit);
+
+    papp = new HotStuffApp(opt_blk_size->get(),
+                        opt_stat_period->get(),
+                        opt_imp_timeout->get(),
+                        idx,
+                        hotstuff::from_hex(opt_privkey->get()),
+                        plisten_addr,
+                        NetAddr("0.0.0.0", client_port),
+                        std::move(pmaker),
+                        ec,
+                        opt_nworker->get());
+    for (size_t i = 0; i < replicas.size(); i++)
+    {
+        auto p = split_ip_port_cport(replicas[i].first);
+        papp->add_replica(i, NetAddr(p.first),
+                            hotstuff::from_hex(replicas[i].second));
+    }
+    auto shutdown = [&](int) { ec.stop(); };
+    salticidae::SigEvent ev_sigint(ec, shutdown);
+    salticidae::SigEvent ev_sigterm(ec, shutdown);
+    ev_sigint.add(SIGINT);
+    ev_sigterm.add(SIGTERM);
+
+    papp->start();
+    elapsed.stop(true);
     return 0;
 }
 
@@ -243,15 +234,16 @@ HotStuffApp::HotStuffApp(uint32_t blk_size,
     stat_period(stat_period),
     impeach_timeout(impeach_timeout),
     ec(ec),
-    cn(ec),
+    cn(ec, ClientNetwork<opcode_t>::Config()),
     clisten_addr(clisten_addr) {
     /* register the handlers for msg from clients */
     cn.reg_handler(salticidae::generic_bind(&HotStuffApp::client_request_cmd_handler, this, _1, _2));
+    cn.start();
     cn.listen(clisten_addr);
 }
 
-void HotStuffApp::client_request_cmd_handler(MsgReqCmd &&msg, Conn &conn) {
-    const NetAddr addr = conn.get_addr();
+void HotStuffApp::client_request_cmd_handler(MsgReqCmd &&msg, const conn_t &conn) {
+    const NetAddr addr = conn->get_addr();
     auto cmd = parse_cmd(msg.serialized);
     const auto &cmd_hash = cmd->get_hash();
     std::vector<promise_t> pms;
@@ -275,17 +267,17 @@ void HotStuffApp::client_request_cmd_handler(MsgReqCmd &&msg, Conn &conn) {
 }
 
 void HotStuffApp::start() {
-    ev_stat_timer = Event(ec, -1, 0, [this](int, short) {
+    ev_stat_timer = TimerEvent(ec, [this](TimerEvent &) {
         HotStuff::print_stat();
         //HotStuffCore::prune(100);
-        ev_stat_timer.add_with_timeout(stat_period);
+        ev_stat_timer.add(stat_period);
     });
-    ev_stat_timer.add_with_timeout(stat_period);
-    impeach_timer = Event(ec, -1, 0, [this](int, short) {
+    ev_stat_timer.add(stat_period);
+    impeach_timer = TimerEvent(ec, [this](TimerEvent &) {
         get_pace_maker().impeach();
         reset_imp_timer();
     });
-    impeach_timer.add_with_timeout(impeach_timeout);
+    impeach_timer.add(impeach_timeout);
     HOTSTUFF_LOG_INFO("** starting the system with parameters **");
     HOTSTUFF_LOG_INFO("blk_size = %lu", blk_size);
     HOTSTUFF_LOG_INFO("conns = %lu", HotStuff::size());

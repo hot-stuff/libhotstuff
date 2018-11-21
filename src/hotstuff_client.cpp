@@ -1,6 +1,8 @@
 #include <cassert>
 #include <random>
 #include <signal.h>
+#include <sys/time.h>
+
 #include "salticidae/type.h"
 #include "salticidae/netaddr.h"
 #include "salticidae/network.h"
@@ -11,7 +13,6 @@
 #include "hotstuff/client.h"
 
 using salticidae::Config;
-using salticidae::MsgNetwork;
 
 using hotstuff::ReplicaID;
 using hotstuff::NetAddr;
@@ -25,7 +26,7 @@ using hotstuff::uint256_t;
 using hotstuff::opcode_t;
 using hotstuff::command_t;
 
-EventContext eb;
+EventContext ec;
 ReplicaID proposer;
 size_t max_async_num;
 int max_iter_num;
@@ -42,11 +43,13 @@ struct Request {
         rid(rid), cmd(cmd), confirmed(0) { et.start(); }
 };
 
-std::unordered_map<ReplicaID, MsgNetwork<opcode_t>::conn_t> conns;
+using Net = salticidae::MsgNetwork<opcode_t>;
+
+std::unordered_map<ReplicaID, Net::conn_t> conns;
 std::unordered_map<const uint256_t, Request> waiting;
 std::vector<NetAddr> replicas;
 std::vector<std::pair<struct timeval, double>> elapsed;
-MsgNetwork<opcode_t> mn(eb, 10, 10, 4096);
+Net mn(ec, Net::Config());
 
 void connect_all() {
     for (size_t i = 0; i < replicas.size(); i++)
@@ -66,7 +69,7 @@ void try_send() {
         auto cmd = new CommandDummy(cid, cnt++);
         //mn.send_msg(MsgReqCmd(*cmd), *conns.at(proposer));
         MsgReqCmd msg(*cmd);
-        for (auto &p: conns) mn.send_msg(msg, *(p.second));
+        for (auto &p: conns) mn.send_msg(msg, p.second);
 #ifndef HOTSTUFF_ENABLE_BENCHMARK
         HOTSTUFF_LOG_INFO("send new cmd %.10s",
                             get_hex(cmd->get_hash()).c_str());
@@ -78,7 +81,7 @@ void try_send() {
     }
 }
 
-void client_resp_cmd_handler(MsgRespCmd &&msg, MsgNetwork<opcode_t>::Conn &) {
+void client_resp_cmd_handler(MsgRespCmd &&msg, const Net::conn_t &) {
     auto &fin = msg.fin;
     HOTSTUFF_LOG_DEBUG("got %s", std::string(msg.fin).c_str());
     const uint256_t &cmd_hash = fin.cmd_hash;
@@ -122,15 +125,8 @@ std::pair<std::string, std::string> split_ip_port_cport(const std::string &s) {
     return std::make_pair(ret[0], ret[1]);
 }
 
-void signal_handler(int) {
-    throw HotStuffError("got terminal signal");
-}
-
 int main(int argc, char **argv) {
     Config config("hotstuff.conf");
-
-    signal(SIGTERM, signal_handler);
-    signal(SIGINT, signal_handler);
 
     auto opt_idx = Config::OptValInt::create(0);
     auto opt_replicas = Config::OptValStrVec::create();
@@ -138,54 +134,58 @@ int main(int argc, char **argv) {
     auto opt_max_async_num = Config::OptValInt::create(10);
     auto opt_cid = Config::OptValInt::create(-1);
 
+    auto shutdown = [&](int) { ec.stop(); };
+    salticidae::SigEvent ev_sigint(ec, shutdown);
+    salticidae::SigEvent ev_sigterm(ec, shutdown);
+    ev_sigint.add(SIGINT);
+    ev_sigterm.add(SIGTERM);
+
     mn.reg_handler(client_resp_cmd_handler);
+    mn.start();
 
-    try {
-        config.add_opt("idx", opt_idx, Config::SET_VAL);
-        config.add_opt("cid", opt_cid, Config::SET_VAL);
-        config.add_opt("replica", opt_replicas, Config::APPEND);
-        config.add_opt("iter", opt_max_iter_num, Config::SET_VAL);
-        config.add_opt("max-async", opt_max_async_num, Config::SET_VAL);
-        config.parse(argc, argv);
-        auto idx = opt_idx->get();
-        max_iter_num = opt_max_iter_num->get();
-        max_async_num = opt_max_async_num->get();
-        std::vector<std::pair<std::string, std::string>> raw;
-        for (const auto &s: opt_replicas->get())
-        {
-            auto res = salticidae::trim_all(salticidae::split(s, ","));
-            if (res.size() != 2)
-                throw HotStuffError("format error");
-            raw.push_back(std::make_pair(res[0], res[1]));
-        }
-
-        if (!(0 <= idx && (size_t)idx < raw.size() && raw.size() > 0))
-            throw std::invalid_argument("out of range");
-        cid = opt_cid->get() != -1 ? opt_cid->get() : idx;
-        for (const auto &p: raw)
-        {
-            auto _p = split_ip_port_cport(p.first);
-            size_t _;
-            replicas.push_back(NetAddr(NetAddr(_p.first).ip, htons(stoi(_p.second, &_))));
-        }
-
-        nfaulty = (replicas.size() - 1) / 3;
-        HOTSTUFF_LOG_INFO("nfaulty = %zu", nfaulty);
-        connect_all();
-        set_proposer(idx);
-        try_send();
-        eb.dispatch();
-    } catch (HotStuffError &e) {
-        HOTSTUFF_LOG_ERROR("exception: %s", std::string(e).c_str());
-#ifdef HOTSTUFF_ENABLE_BENCHMARK
-        for (const auto &e: elapsed)
-        {
-            char fmt[64];
-            struct tm *tmp = localtime(&e.first.tv_sec);
-            strftime(fmt, sizeof fmt, "%Y-%m-%d %H:%M:%S.%%06u [hotstuff info] %%.6f\n", tmp);
-            fprintf(stderr, fmt, e.first.tv_usec, e.second);
-        }
-#endif
+    config.add_opt("idx", opt_idx, Config::SET_VAL);
+    config.add_opt("cid", opt_cid, Config::SET_VAL);
+    config.add_opt("replica", opt_replicas, Config::APPEND);
+    config.add_opt("iter", opt_max_iter_num, Config::SET_VAL);
+    config.add_opt("max-async", opt_max_async_num, Config::SET_VAL);
+    config.parse(argc, argv);
+    auto idx = opt_idx->get();
+    max_iter_num = opt_max_iter_num->get();
+    max_async_num = opt_max_async_num->get();
+    std::vector<std::pair<std::string, std::string>> raw;
+    for (const auto &s: opt_replicas->get())
+    {
+        auto res = salticidae::trim_all(salticidae::split(s, ","));
+        if (res.size() != 2)
+            throw HotStuffError("format error");
+        raw.push_back(std::make_pair(res[0], res[1]));
     }
+
+    if (!(0 <= idx && (size_t)idx < raw.size() && raw.size() > 0))
+        throw std::invalid_argument("out of range");
+    cid = opt_cid->get() != -1 ? opt_cid->get() : idx;
+    for (const auto &p: raw)
+    {
+        auto _p = split_ip_port_cport(p.first);
+        size_t _;
+        replicas.push_back(NetAddr(NetAddr(_p.first).ip, htons(stoi(_p.second, &_))));
+    }
+
+    nfaulty = (replicas.size() - 1) / 3;
+    HOTSTUFF_LOG_INFO("nfaulty = %zu", nfaulty);
+    connect_all();
+    set_proposer(idx);
+    try_send();
+    ec.dispatch();
+
+#ifdef HOTSTUFF_ENABLE_BENCHMARK
+    for (const auto &e: elapsed)
+    {
+        char fmt[64];
+        struct tm *tmp = localtime(&e.first.tv_sec);
+        strftime(fmt, sizeof fmt, "%Y-%m-%d %H:%M:%S.%%06u [hotstuff info] %%.6f\n", tmp);
+        fprintf(stderr, fmt, e.first.tv_usec, e.second);
+    }
+#endif
     return 0;
 }

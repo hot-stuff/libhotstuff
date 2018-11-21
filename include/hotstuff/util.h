@@ -13,7 +13,7 @@ class Logger: public salticidae::Logger {
     void proto(const char *fmt, ...) {
         va_list ap;
         va_start(ap, fmt);
-        write("proto", fmt, ap);
+        write("proto", is_tty() ? salticidae::TTY_COLOR_MAGENTA : nullptr, fmt, ap);
         va_end(ap);
     }
 };

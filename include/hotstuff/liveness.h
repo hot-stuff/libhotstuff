@@ -240,8 +240,8 @@ class PMStickyProposer: virtual public PaceMaker {
     double candidate_timeout;
     EventContext ec;
     /** QC timer or randomized timeout */
-    Event timer;
-    Event ev_imp;
+    TimerEvent timer;
+    TimerEvent ev_imp;
     block_t last_proposed;
     /** the proposer it believes */
     ReplicaID proposer;
@@ -304,7 +304,7 @@ class PMStickyProposer: virtual public PaceMaker {
                 .then([this, pm]() {
                     timer.del();
                     pm.resolve(proposer);
-                    timer.add_with_timeout(qc_timeout);
+                    timer.add(qc_timeout);
                     HOTSTUFF_LOG_PROTO("QC timer reset");
                 });
             locked = true;
@@ -350,7 +350,7 @@ class PMStickyProposer: virtual public PaceMaker {
         });
         double t = salticidae::gen_rand_timeout(candidate_timeout);
         timer.del();
-        timer.add_with_timeout(t);
+        timer.add(t);
         HOTSTUFF_LOG_INFO("candidate next try in %.2fs", t);
         propose_elect_block();
     }
@@ -401,7 +401,7 @@ class PMStickyProposer: virtual public PaceMaker {
         proposer = hsc->get_id();
         last_proposed = nullptr;
         hsc->set_neg_vote(true);
-        timer = Event(ec, -1, 0, [this](int, short) {
+        timer = TimerEvent(ec, [this](TimerEvent &) {
             /* proposer unable to get a QC in time */
             to_candidate();
         });
@@ -416,7 +416,7 @@ class PMStickyProposer: virtual public PaceMaker {
         proposer = hsc->get_id();
         last_proposed = nullptr;
         hsc->set_neg_vote(false);
-        timer = Event(ec, -1, 0, [this](int, short) {
+        timer = TimerEvent(ec, [this](TimerEvent &) {
             candidate_qc_timeout();
         });
         candidate_timeout = qc_timeout;
@@ -427,10 +427,10 @@ class PMStickyProposer: virtual public PaceMaker {
     protected:
     void impeach() override {
         if (role == CANDIDATE) return;
-        ev_imp = Event(ec, -1, 0, [this](int, short) {
+        ev_imp = TimerEvent(ec, [this](TimerEvent &) {
             to_candidate();
         });
-        ev_imp.add_with_timeout(0);
+        ev_imp.add(0);
         HOTSTUFF_LOG_INFO("schedule to impeach the proposer");
     }
 
@@ -490,8 +490,8 @@ class PMRoundRobinProposer: virtual public PaceMaker {
     double candidate_timeout;
     EventContext ec;
     /** QC timer or randomized timeout */
-    Event timer;
-    Event ev_imp;
+    TimerEvent timer;
+    TimerEvent ev_imp;
     block_t last_proposed;
     /** the proposer it believes */
     ReplicaID proposer;
@@ -554,7 +554,7 @@ class PMRoundRobinProposer: virtual public PaceMaker {
                 .then([this, pm]() {
                     timer.del();
                     pm.resolve(proposer);
-                    timer.add_with_timeout(qc_timeout);
+                    timer.add(qc_timeout);
                     HOTSTUFF_LOG_PROTO("QC timer reset");
                 });
             locked = true;
@@ -608,7 +608,7 @@ class PMRoundRobinProposer: virtual public PaceMaker {
 
     void candidate_qc_timeout() {
         timer.del();
-        timer.add_with_timeout(candidate_timeout);
+        timer.add(candidate_timeout);
         candidate_timeout *= 1.01;
         proposer = (proposer + 1) % hsc->get_config().nreplicas;
         if (proposer == hsc->get_id())
@@ -654,7 +654,7 @@ class PMRoundRobinProposer: virtual public PaceMaker {
         role = PROPOSER;
         last_proposed = nullptr;
         hsc->set_neg_vote(true);
-        timer = Event(ec, -1, 0, [this](int, short) {
+        timer = TimerEvent(ec, [this](TimerEvent &) {
             /* proposer unable to get a QC in time */
             to_candidate();
         });
@@ -667,7 +667,7 @@ class PMRoundRobinProposer: virtual public PaceMaker {
         role = CANDIDATE;
         last_proposed = nullptr;
         hsc->set_neg_vote(false);
-        timer = Event(ec, -1, 0, [this](int, short) {
+        timer = TimerEvent(ec, [this](TimerEvent &) {
             candidate_qc_timeout();
         });
         candidate_timeout = qc_timeout * 0.1;
@@ -678,10 +678,10 @@ class PMRoundRobinProposer: virtual public PaceMaker {
     protected:
     void impeach() override {
         if (role == CANDIDATE) return;
-        ev_imp = Event(ec, -1, 0, [this](int, short) {
+        ev_imp = TimerEvent(ec, [this](TimerEvent &) {
             to_candidate();
         });
-        ev_imp.add_with_timeout(0);
+        ev_imp.add(0);
         HOTSTUFF_LOG_INFO("schedule to impeach the proposer");
     }
 

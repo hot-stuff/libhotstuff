@@ -107,7 +107,10 @@ void HotStuffBase::add_replica(ReplicaID idx, const NetAddr &addr,
                                 pubkey_bt &&pub_key) {
     HotStuffCore::add_replica(idx, addr, std::move(pub_key));
     if (addr != listen_addr)
+    {
+        peers.insert(addr);
         pn.add_peer(addr);
+    }
 }
 
 void HotStuffBase::on_fetch_blk(const block_t &blk) {
@@ -221,8 +224,8 @@ promise_t HotStuffBase::async_deliver_blk(const uint256_t &blk_hash,
     return static_cast<promise_t &>(pm);
 }
 
-void HotStuffBase::propose_handler(MsgPropose &&msg, Conn &conn) {
-    const NetAddr &peer = conn.get_peer();
+void HotStuffBase::propose_handler(MsgPropose &&msg, const Net::conn_t &conn) {
+    const NetAddr &peer = conn->get_peer();
     msg.postponed_parse(this);
     auto &prop = msg.proposal;
     block_t blk = prop.blk;
@@ -235,8 +238,8 @@ void HotStuffBase::propose_handler(MsgPropose &&msg, Conn &conn) {
     });
 }
 
-void HotStuffBase::vote_handler(MsgVote &&msg, Conn &conn) {
-    const NetAddr &peer = conn.get_peer();
+void HotStuffBase::vote_handler(MsgVote &&msg, const Net::conn_t &conn) {
+    const NetAddr &peer = conn->get_peer();
     msg.postponed_parse(this);
     //auto &vote = msg.vote;
     RcObj<Vote> v(new Vote(std::move(msg.vote)));
@@ -255,8 +258,8 @@ void HotStuffBase::vote_handler(MsgVote &&msg, Conn &conn) {
     });
 }
 
-void HotStuffBase::req_blk_handler(MsgReqBlock &&msg, Conn &conn) {
-    const NetAddr replica = conn.get_peer();
+void HotStuffBase::req_blk_handler(MsgReqBlock &&msg, const Net::conn_t &conn) {
+    const NetAddr replica = conn->get_peer();
     auto &blk_hashes = msg.blk_hashes;
     std::vector<promise_t> pms;
     for (const auto &h: blk_hashes)
@@ -272,7 +275,7 @@ void HotStuffBase::req_blk_handler(MsgReqBlock &&msg, Conn &conn) {
     });
 }
 
-void HotStuffBase::resp_blk_handler(MsgRespBlock &&msg, Conn &) {
+void HotStuffBase::resp_blk_handler(MsgRespBlock &&msg, const Net::conn_t &) {
     msg.postponed_parse(this);
     for (const auto &blk: msg.blks)
         if (blk) on_fetch_blk(blk);
@@ -310,28 +313,10 @@ void HotStuffBase::print_stat() const {
     part_delivery_time_min = double_inf;
     part_delivery_time_max = 0;
 #ifdef HOTSTUFF_MSG_STAT
-    LOG_INFO("-- sent opcode (10s) --");
-    auto &sent_op = pn.get_sent_by_opcode();
-    for (auto &op: sent_op)
-    {
-        auto &val = op.second;
-        LOG_INFO("%02x: %lu, %.2fBpm", op.first,
-                val.first, val.first ? val.second / double(val.first) : 0);
-        val.first = val.second = 0;
-    }
-    LOG_INFO("-- recv opcode (10s) --");
-    auto &recv_op = pn.get_recv_by_opcode();
-    for (auto &op: recv_op)
-    {
-        auto &val = op.second;
-        LOG_INFO("%02x: %lu, %.2fBpm", op.first,
-                val.first, val.first ? val.second / double(val.first) : 0);
-        val.first = val.second = 0;
-    }
     LOG_INFO("--- replica msg. (10s) ---");
     size_t _nsent = 0;
     size_t _nrecv = 0;
-    for (const auto &replica: pn.all_peers())
+    for (const auto &replica: peers)
     {
         auto conn = pn.get_peer_conn(replica);
         if (conn == nullptr) continue;
@@ -361,14 +346,15 @@ HotStuffBase::HotStuffBase(uint32_t blk_size,
                     privkey_bt &&priv_key,
                     NetAddr listen_addr,
                     pacemaker_bt pmaker,
-                    EventContext eb,
-                    size_t nworker):
+                    EventContext ec,
+                    size_t nworker,
+                    const Net::Config &config):
         HotStuffCore(rid, std::move(priv_key)),
         listen_addr(listen_addr),
         blk_size(blk_size),
-        eb(eb),
-        vpool(eb, nworker),
-        pn(eb),
+        ec(ec),
+        vpool(ec, nworker),
+        pn(ec, config),
         pmaker(std::move(pmaker)),
 
         fetched(0), delivered(0),
@@ -387,12 +373,13 @@ HotStuffBase::HotStuffBase(uint32_t blk_size,
     pn.reg_handler(salticidae::generic_bind(&HotStuffBase::vote_handler, this, _1, _2));
     pn.reg_handler(salticidae::generic_bind(&HotStuffBase::req_blk_handler, this, _1, _2));
     pn.reg_handler(salticidae::generic_bind(&HotStuffBase::resp_blk_handler, this, _1, _2));
+    pn.start();
     pn.listen(listen_addr);
 }
 
 void HotStuffBase::do_broadcast_proposal(const Proposal &prop) {
     MsgPropose prop_msg(prop);
-    for (const auto &replica: pn.all_peers())
+    for (const auto &replica: peers)
         pn.send_msg(prop_msg, replica);
 }
 
@@ -422,15 +409,15 @@ void HotStuffBase::do_decide(Finality &&fin) {
 
 HotStuffBase::~HotStuffBase() {}
 
-void HotStuffBase::start(bool eb_loop) {
+void HotStuffBase::start(bool ec_loop) {
     /* ((n - 1) + 1 - 1) / 3 */
-    uint32_t nfaulty = pn.all_peers().size() / 3;
+    uint32_t nfaulty = peers.size() / 3;
     if (nfaulty == 0)
         LOG_WARN("too few replicas in the system to tolerate any failure");
     on_init(nfaulty);
     pmaker->init(this);
-    if (eb_loop)
-        eb.dispatch();
+    if (ec_loop)
+        ec.dispatch();
 }
 
 }

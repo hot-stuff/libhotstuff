@@ -14,7 +14,6 @@
 
 namespace hotstuff {
 
-using salticidae::MsgNetwork;
 using salticidae::PeerNetwork;
 using salticidae::ElapsedTime;
 using salticidae::_1;
@@ -69,12 +68,12 @@ class HotStuffBase;
 
 template<EntityType ent_type>
 class FetchContext: public promise_t {
-    Event timeout;
+    TimerEvent timeout;
     HotStuffBase *hs;
     MsgReqBlock fetch_msg;
     const uint256_t ent_hash;
     std::unordered_set<NetAddr> replica_ids;
-    inline void timeout_cb(evutil_socket_t, short);
+    inline void timeout_cb(TimerEvent &);
     public:
     FetchContext(const FetchContext &) = delete;
     FetchContext &operator=(const FetchContext &) = delete;
@@ -109,7 +108,7 @@ class BlockDeliveryContext: public promise_t {
 class HotStuffBase: public HotStuffCore {
     using BlockFetchContext = FetchContext<ENT_TYPE_BLK>;
     using CmdFetchContext = FetchContext<ENT_TYPE_CMD>;
-    using Conn = PeerNetwork<opcode_t>::Conn;
+    using Net = PeerNetwork<opcode_t>;
 
     friend BlockFetchContext;
     friend CmdFetchContext;
@@ -120,14 +119,15 @@ class HotStuffBase: public HotStuffCore {
     /** the block size */
     size_t blk_size;
     /** libevent handle */
-    EventContext eb;
+    EventContext ec;
     VeriPool vpool;
+    std::unordered_set<NetAddr> peers;
 
     private:
     /** whether libevent handle is owned by itself */
-    bool eb_loop;
+    bool ec_loop;
     /** network stack */
-    PeerNetwork<opcode_t> pn;
+    Net pn;
 #ifdef HOTSTUFF_BLK_PROFILE
     BlockProfiler blk_profiler;
 #endif
@@ -159,13 +159,13 @@ class HotStuffBase: public HotStuffCore {
     void on_deliver_blk(const block_t &blk);
 
     /** deliver consensus message: <propose> */
-    inline void propose_handler(MsgPropose &&, Conn &);
+    inline void propose_handler(MsgPropose &&, const Net::conn_t &);
     /** deliver consensus message: <vote> */
-    inline void vote_handler(MsgVote &&, Conn &);
+    inline void vote_handler(MsgVote &&, const Net::conn_t &);
     /** fetches full block data */
-    inline void req_blk_handler(MsgReqBlock &&, Conn &);
+    inline void req_blk_handler(MsgReqBlock &&, const Net::conn_t &);
     /** receives a block */
-    inline void resp_blk_handler(MsgRespBlock &&, Conn &);
+    inline void resp_blk_handler(MsgRespBlock &&, const Net::conn_t &);
 
     void do_broadcast_proposal(const Proposal &) override;
     void do_vote(ReplicaID, const Vote &) override;
@@ -183,8 +183,9 @@ class HotStuffBase: public HotStuffCore {
             privkey_bt &&priv_key,
             NetAddr listen_addr,
             pacemaker_bt pmaker,
-            EventContext eb,
-            size_t nworker);
+            EventContext ec,
+            size_t nworker,
+            const Net::Config &config = Net::Config());
 
     ~HotStuffBase();
 
@@ -193,9 +194,9 @@ class HotStuffBase: public HotStuffCore {
     /* Submit the command to be decided. */
     promise_t exec_command(uint256_t cmd);
     void add_replica(ReplicaID idx, const NetAddr &addr, pubkey_bt &&pub_key);
-    void start(bool eb_loop = false);
+    void start(bool ec_loop = false);
 
-    size_t size() const { return pn.all_peers().size(); }
+    size_t size() const { return peers.size(); }
     PaceMaker &get_pace_maker() { return *pmaker; }
     void print_stat() const;
 
@@ -247,14 +248,14 @@ class HotStuff: public HotStuffBase {
             const bytearray_t &raw_privkey,
             NetAddr listen_addr,
             pacemaker_bt pmaker,
-            EventContext eb = EventContext(),
+            EventContext ec = EventContext(),
             size_t nworker = 4):
         HotStuffBase(blk_size,
                     rid,
                     new PrivKeyType(raw_privkey),
                     listen_addr,
                     std::move(pmaker),
-                    eb,
+                    ec,
                     nworker) {}
 
     void add_replica(ReplicaID idx, const NetAddr &addr, const bytearray_t &pubkey_raw) {
@@ -275,13 +276,13 @@ FetchContext<ent_type>::FetchContext(FetchContext && other):
         ent_hash(other.ent_hash),
         replica_ids(std::move(other.replica_ids)) {
     other.timeout.del();
-    timeout = Event(hs->eb, -1, 0,
-            std::bind(&FetchContext::timeout_cb, this, _1, _2));
+    timeout = TimerEvent(hs->ec,
+            std::bind(&FetchContext::timeout_cb, this, _1));
     reset_timeout();
 }
 
 template<>
-inline void FetchContext<ENT_TYPE_CMD>::timeout_cb(evutil_socket_t, short) {
+inline void FetchContext<ENT_TYPE_CMD>::timeout_cb(TimerEvent &) {
     HOTSTUFF_LOG_WARN("cmd fetching %.10s timeout", get_hex(ent_hash).c_str());
     for (const auto &replica_id: replica_ids)
         send(replica_id);
@@ -289,7 +290,7 @@ inline void FetchContext<ENT_TYPE_CMD>::timeout_cb(evutil_socket_t, short) {
 }
 
 template<>
-inline void FetchContext<ENT_TYPE_BLK>::timeout_cb(evutil_socket_t, short) {
+inline void FetchContext<ENT_TYPE_BLK>::timeout_cb(TimerEvent &) {
     HOTSTUFF_LOG_WARN("block fetching %.10s timeout", get_hex(ent_hash).c_str());
     for (const auto &replica_id: replica_ids)
         send(replica_id);
@@ -303,8 +304,8 @@ FetchContext<ent_type>::FetchContext(
             hs(hs), ent_hash(ent_hash) {
     fetch_msg = std::vector<uint256_t>{ent_hash};
 
-    timeout = Event(hs->eb, -1, 0,
-            std::bind(&FetchContext::timeout_cb, this, _1, _2));
+    timeout = TimerEvent(hs->ec,
+            std::bind(&FetchContext::timeout_cb, this, _1));
     reset_timeout();
 }
 
@@ -316,7 +317,7 @@ void FetchContext<ent_type>::send(const NetAddr &replica_id) {
 
 template<EntityType ent_type>
 void FetchContext<ent_type>::reset_timeout() {
-    timeout.add_with_timeout(salticidae::gen_rand_timeout(ent_waiting_timeout));
+    timeout.add(salticidae::gen_rand_timeout(ent_waiting_timeout));
 }
 
 template<EntityType ent_type>
