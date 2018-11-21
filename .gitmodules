@@ -4,6 +4,3 @@
 [submodule "salticidae"]
 	path = salticidae
 	url = https://github.com/Determinant/salticidae.git
-[submodule "concurrentqueue"]
-	path = concurrentqueue
-	url = https://github.com/cameron314/concurrentqueue.git
