@@ -46,7 +46,6 @@ class VeriPool {
                 auto it = pms.find(task);
                 it->second.second.resolve(task->result);
                 pms.erase(it);
-                delete task;
                 if (!--cnt) return true;
             }
             return false;
@@ -60,7 +59,7 @@ class VeriPool {
                 VeriTask *task;
                 while (q.try_dequeue(task))
                 {
-                    HOTSTUFF_LOG_DEBUG("%lu working on %u",
+                    HOTSTUFF_LOG_DEBUG("%lx working on %u",
                                         std::this_thread::get_id(), (uintptr_t)task);
                     task->result = task->verify();
                     out_queue.enqueue(task);
