@@ -90,8 +90,7 @@ class ReplicaConfig {
 class Block;
 class HotStuffCore;
 
-using block_t = salticidae::RcObj<Block>;
-using block_weak_t = salticidae::WeakObj<Block>;
+using block_t = salticidae::ArcObj<Block>;
 
 class Command: public Serializable {
     friend HotStuffCore;
