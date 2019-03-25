@@ -79,7 +79,7 @@ class HotStuffCore {
 
     /** Call to initialize the protocol, should be called once before all other
      * functions. */
-    void on_init(uint32_t nfaulty) { config.nmajority = 2 * nfaulty + 1; }
+    void on_init(uint32_t nfaulty);
 
     /* TODO: better name for "delivery" ? */
     /** Call to inform the state machine that a block is ready to be handled.
@@ -267,13 +267,13 @@ struct Vote: public Serializable {
     bool verify() const {
         assert(hsc != nullptr);
         return cert->verify(hsc->get_config().get_pubkey(voter)) &&
-                cert->get_blk_hash() == blk_hash;
+                cert->get_obj_hash() == blk_hash;
     }
 
     promise_t verify(VeriPool &vpool) const {
         assert(hsc != nullptr);
         return cert->verify(hsc->get_config().get_pubkey(voter), vpool).then([this](bool result) {
-            return result && cert->get_blk_hash() == blk_hash;
+            return result && cert->get_obj_hash() == blk_hash;
         });
     }
 

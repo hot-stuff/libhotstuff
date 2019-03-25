@@ -229,7 +229,7 @@ promise_t HotStuffBase::async_deliver_blk(const uint256_t &blk_hash,
         std::vector<promise_t> pms;
         const auto &qc = blk->get_qc();
         if (qc)
-            pms.push_back(async_fetch_blk(qc->get_blk_hash(), &replica_id));
+            pms.push_back(async_fetch_blk(qc->get_obj_hash(), &replica_id));
         /* the parents should be delivered */
         for (const auto &phash: blk->get_parent_hashes())
             pms.push_back(async_deliver_blk(phash, replica_id));
@@ -262,16 +262,13 @@ void HotStuffBase::vote_handler(MsgVote &&msg, const Net::conn_t &conn) {
     RcObj<Vote> v(new Vote(std::move(msg.vote)));
     promise::all(std::vector<promise_t>{
         async_deliver_blk(v->bqc_hash, peer),
-        async_deliver_blk(v->blk_hash, peer)
-    }).then([this, v=std::move(v)]() {
-        //bool result = vote->verify();
-        auto pm = v->verify(vpool);
-        pm.then([this, v=std::move(v)](bool result) {
-        if (!result)
+        async_deliver_blk(v->blk_hash, peer),
+        v->verify(vpool),
+    }).then([this, v=std::move(v)](const promise::values_t values) {
+        if (!promise::any_cast<bool>(values[2]))
             LOG_WARN("invalid vote from %d", v->voter);
         else
             on_receive_vote(*v);
-        });
     });
 }
 

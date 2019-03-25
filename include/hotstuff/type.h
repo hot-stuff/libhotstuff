@@ -28,6 +28,7 @@
 namespace hotstuff {
 
 using salticidae::RcObj;
+using salticidae::ArcObj;
 using salticidae::BoxObj;
 
 using salticidae::uint256_t;

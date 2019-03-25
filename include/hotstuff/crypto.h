@@ -50,7 +50,7 @@ class PartCert: public Serializable, public Cloneable {
     virtual ~PartCert() = default;
     virtual promise_t verify(const PubKey &pubkey, VeriPool &vpool) = 0;
     virtual bool verify(const PubKey &pubkey) = 0;
-    virtual const uint256_t &get_blk_hash() const = 0;
+    virtual const uint256_t &get_obj_hash() const = 0;
     virtual PartCert *clone() override = 0;
 };
 
@@ -63,7 +63,7 @@ class QuorumCert: public Serializable, public Cloneable {
     virtual void compute() = 0;
     virtual promise_t verify(const ReplicaConfig &config, VeriPool &vpool) = 0;
     virtual bool verify(const ReplicaConfig &config) = 0;
-    virtual const uint256_t &get_blk_hash() const = 0;
+    virtual const uint256_t &get_obj_hash() const = 0;
     virtual QuorumCert *clone() override = 0;
 };
 
@@ -84,23 +84,23 @@ class PrivKeyDummy: public PrivKey {
 };
 
 class PartCertDummy: public PartCert {
-    uint256_t blk_hash;
+    uint256_t obj_hash;
     public:
     PartCertDummy() {}
-    PartCertDummy(const uint256_t &blk_hash):
-        blk_hash(blk_hash) {}
+    PartCertDummy(const uint256_t &obj_hash):
+        obj_hash(obj_hash) {}
 
     void serialize(DataStream &s) const override {
-        s << (uint32_t)0 << blk_hash;
+        s << (uint32_t)0 << obj_hash;
     }
 
     void unserialize(DataStream &s) override {
         uint32_t tmp;
-        s >> tmp >> blk_hash;
+        s >> tmp >> obj_hash;
     }
 
     PartCert *clone() override {
-        return new PartCertDummy(blk_hash);
+        return new PartCertDummy(obj_hash);
     }
 
     bool verify(const PubKey &) override { return true; }
@@ -108,23 +108,23 @@ class PartCertDummy: public PartCert {
         return promise_t([](promise_t &pm){ pm.resolve(true); });
     }
 
-    const uint256_t &get_blk_hash() const override { return blk_hash; }
+    const uint256_t &get_obj_hash() const override { return obj_hash; }
 };
 
 class QuorumCertDummy: public QuorumCert {
-    uint256_t blk_hash;
+    uint256_t obj_hash;
     public:
     QuorumCertDummy() {}
-    QuorumCertDummy(const ReplicaConfig &, const uint256_t &blk_hash):
-        blk_hash(blk_hash) {}
+    QuorumCertDummy(const ReplicaConfig &, const uint256_t &obj_hash):
+        obj_hash(obj_hash) {}
 
     void serialize(DataStream &s) const override {
-        s << (uint32_t)1 << blk_hash;
+        s << (uint32_t)1 << obj_hash;
     }
 
     void unserialize(DataStream &s) override {
         uint32_t tmp;
-        s >> tmp >> blk_hash;
+        s >> tmp >> obj_hash;
     }
 
     QuorumCert *clone() override {
@@ -138,7 +138,7 @@ class QuorumCertDummy: public QuorumCert {
         return promise_t([](promise_t &pm) { pm.resolve(true); });
     }
 
-    const uint256_t &get_blk_hash() const override { return blk_hash; }
+    const uint256_t &get_obj_hash() const override { return obj_hash; }
 };
 
 
@@ -163,7 +163,7 @@ class Secp256k1Context {
     }
 };
 
-using secp256k1_context_t = RcObj<Secp256k1Context>;
+using secp256k1_context_t = ArcObj<Secp256k1Context>;
 
 extern secp256k1_context_t secp256k1_default_sign_ctx;
 extern secp256k1_context_t secp256k1_default_verify_ctx;
@@ -346,55 +346,55 @@ class Secp256k1VeriTask: public VeriTask {
 };
 
 class PartCertSecp256k1: public SigSecp256k1, public PartCert {
-    uint256_t blk_hash;
+    uint256_t obj_hash;
 
     public:
     PartCertSecp256k1() = default;
-    PartCertSecp256k1(const PrivKeySecp256k1 &priv_key, const uint256_t &blk_hash):
-        SigSecp256k1(blk_hash, priv_key),
+    PartCertSecp256k1(const PrivKeySecp256k1 &priv_key, const uint256_t &obj_hash):
+        SigSecp256k1(obj_hash, priv_key),
         PartCert(),
-        blk_hash(blk_hash) {}
+        obj_hash(obj_hash) {}
 
     bool verify(const PubKey &pub_key) override {
-        return SigSecp256k1::verify(blk_hash,
+        return SigSecp256k1::verify(obj_hash,
                                     static_cast<const PubKeySecp256k1 &>(pub_key),
                                     secp256k1_default_verify_ctx);
     }
 
     promise_t verify(const PubKey &pub_key, VeriPool &vpool) override {
-        return vpool.verify(new Secp256k1VeriTask(blk_hash,
+        return vpool.verify(new Secp256k1VeriTask(obj_hash,
                 static_cast<const PubKeySecp256k1 &>(pub_key),
                 static_cast<const SigSecp256k1 &>(*this)));
     }
 
-    const uint256_t &get_blk_hash() const override { return blk_hash; }
+    const uint256_t &get_obj_hash() const override { return obj_hash; }
 
     PartCertSecp256k1 *clone() override {
         return new PartCertSecp256k1(*this);
     }
 
     void serialize(DataStream &s) const override {
-        s << blk_hash;
+        s << obj_hash;
         this->SigSecp256k1::serialize(s);
     }
 
     void unserialize(DataStream &s) override {
-        s >> blk_hash;
+        s >> obj_hash;
         this->SigSecp256k1::unserialize(s);
     }
 };
 
 class QuorumCertSecp256k1: public QuorumCert {
-    uint256_t blk_hash;
+    uint256_t obj_hash;
     salticidae::Bits rids;
     std::unordered_map<ReplicaID, SigSecp256k1> sigs;
 
     public:
     QuorumCertSecp256k1() = default;
-    QuorumCertSecp256k1(const ReplicaConfig &config, const uint256_t &blk_hash);
+    QuorumCertSecp256k1(const ReplicaConfig &config, const uint256_t &obj_hash);
 
     void add_part(ReplicaID rid, const PartCert &pc) override {
-        if (pc.get_blk_hash() != blk_hash)
+        if (pc.get_obj_hash() != obj_hash)
             throw std::invalid_argument("PartCert does match the block hash");
         sigs.insert(std::make_pair(
             rid, static_cast<const PartCertSecp256k1 &>(pc)));
@@ -406,20 +406,20 @@ class QuorumCertSecp256k1: public QuorumCert {
     bool verify(const ReplicaConfig &config) override;
     promise_t verify(const ReplicaConfig &config, VeriPool &vpool) override;
 
-    const uint256_t &get_blk_hash() const override { return blk_hash; }
+    const uint256_t &get_obj_hash() const override { return obj_hash; }
 
     QuorumCertSecp256k1 *clone() override {
         return new QuorumCertSecp256k1(*this);
     }
 
     void serialize(DataStream &s) const override {
-        s << blk_hash << rids;
+        s << obj_hash << rids;
         for (size_t i = 0; i < rids.size(); i++)
             if (rids.get(i)) s << sigs.at(i);
     }
 
     void unserialize(DataStream &s) override {
-        s >> blk_hash >> rids;
+        s >> obj_hash >> rids;
         for (size_t i = 0; i < rids.size(); i++)
             if (rids.get(i)) s >> sigs[i];
     }

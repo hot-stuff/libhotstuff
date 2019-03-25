@@ -70,7 +70,7 @@ bool HotStuffCore::on_deliver_blk(const block_t &blk) {
 
     if (blk->qc)
     {
-        block_t _blk = storage->find_blk(blk->qc->get_blk_hash());
+        block_t _blk = storage->find_blk(blk->qc->get_obj_hash());
         if (_blk == nullptr)
             throw std::runtime_error("block referred by qc not fetched");
         blk->qc_ref = std::move(_blk);
@@ -142,7 +142,6 @@ void HotStuffCore::on_propose(const std::vector<uint256_t> &cmds,
     if (p != b0 && p->voted.size() >= config.nmajority)
     {
         qc = p->self_qc->clone();
-        qc->compute();
         qc_ref = p;
     }
     /* create the new block */
@@ -194,14 +193,12 @@ void HotStuffCore::on_receive_proposal(const Proposal &prop) {
     if (bnew->qc_ref)
         on_qc_finish(bnew->qc_ref);
     on_receive_proposal_(prop);
-    do_vote(prop.proposer,
-        Vote(id,
-            bqc->get_hash(),
-            bnew->get_hash(),
-            ((opinion && !neg_vote) ?
-                create_part_cert(*priv_key, bnew->get_hash()) :
-                nullptr),
-            this));
+    if (opinion && !neg_vote)
+        do_vote(prop.proposer,
+            Vote(id,
+                bqc->get_hash(),
+                bnew->get_hash(),
+                create_part_cert(*priv_key, bnew->get_hash()), this));
 }
 
 void HotStuffCore::on_receive_vote(const Vote &vote) {
@@ -209,33 +206,29 @@ void HotStuffCore::on_receive_vote(const Vote &vote) {
     LOG_PROTO("got %s", std::string(vote).c_str());
     LOG_PROTO("now state: %s", std::string(*this).c_str());
     block_t blk = get_delivered_blk(vote.blk_hash);
-    if (vote.cert == nullptr) return;
-    /* otherwise the vote is positive */
-    //if (!vote.verify())
-    //{
-    //    LOG_WARN("invalid vote from %d", vote.voter);
-    //    return;
-    //}
+    assert(vote.cert);
+    size_t qsize = blk->voted.size();
+    if (qsize >= config.nmajority) return;
     if (!blk->voted.insert(vote.voter).second)
     {
         LOG_WARN("duplicate vote from %d", vote.voter);
         return;
     }
-    size_t qsize = blk->voted.size();
-    if (qsize <= config.nmajority)
+    auto &qc = blk->self_qc;
+    if (qc == nullptr)
     {
-        auto &qc = blk->self_qc;
-        if (qc == nullptr)
-        {
-            LOG_WARN("vote for block not proposed by itself");
-            qc = create_quorum_cert(blk->get_hash());
-        }
-        qc->add_part(vote.voter, *vote.cert);
-        if (qsize == config.nmajority)
-            on_qc_finish(blk);
+        LOG_WARN("vote for block not proposed by itself");
+        qc = create_quorum_cert(blk->get_hash());
+    }
+    qc->add_part(vote.voter, *vote.cert);
+    if (qsize + 1 == config.nmajority)
+    {
+        qc->compute();
+        on_qc_finish(blk);
     }
 }
 /*** end HotStuff protocol logic ***/
+void HotStuffCore::on_init(uint32_t nfaulty) { config.nmajority = 2 * nfaulty + 1; }
 
 void HotStuffCore::prune(uint32_t staleness) {
     block_t start;

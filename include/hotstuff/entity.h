@@ -105,7 +105,7 @@ class Command: public Serializable {
     }
 };
 
-using command_t = RcObj<Command>;
+using command_t = ArcObj<Command>;
 
 template<typename Hashable>
 inline static std::vector<uint256_t>
