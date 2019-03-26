@@ -100,12 +100,14 @@ class HotStuffApp: public HotStuff {
 #ifndef HOTSTUFF_ENABLE_BENCHMARK
         HOTSTUFF_LOG_INFO("replicated %s", std::string(fin).c_str());
 #endif
+        /*
         auto it = unconfirmed.find(fin.cmd_hash);
         if (it != unconfirmed.end())
         {
             it->second.resolve(fin);
             unconfirmed.erase(it);
         }
+        */
     }
 
     public:
@@ -153,6 +155,7 @@ int main(int argc, char **argv) {
     auto opt_imp_timeout = Config::OptValDouble::create(11);
     auto opt_nworker = Config::OptValInt::create(4);
     auto opt_netnworker = Config::OptValInt::create(4);
+    auto opt_netburst = Config::OptValInt::create(100);
 
     config.add_opt("block-size", opt_blk_size, Config::SET_VAL);
     config.add_opt("parent-limit", opt_parent_limit, Config::SET_VAL);
@@ -166,7 +169,8 @@ int main(int argc, char **argv) {
     config.add_opt("qc-timeout", opt_qc_timeout, Config::SET_VAL, 't', "set QC timeout (for sticky)");
     config.add_opt("imp-timeout", opt_imp_timeout, Config::SET_VAL, 'u', "set impeachment timeout (for sticky)");
     config.add_opt("nworker", opt_nworker, Config::SET_VAL, 'n', "the number of threads for verification");
-    config.add_opt("netnworker", opt_nworker, Config::SET_VAL, 'm', "the number of threads for network");
+    config.add_opt("netnworker", opt_netnworker, Config::SET_VAL, 'm', "the number of threads for network");
+    config.add_opt("netburst", opt_netburst, Config::SET_VAL, 'm', "salticidae burst rate");
     config.add_opt("help", opt_help, Config::SWITCH_ON, 'h', "show this help info");
 
     EventContext ec;
@@ -213,7 +217,9 @@ int main(int argc, char **argv) {
         pmaker = new hotstuff::PaceMakerDummyFixed(opt_fixed_proposer->get(), parent_limit);
 
     HotStuffApp::Net::Config netconfig;
-    netconfig.nworker(opt_netnworker->get());
+    netconfig
+        .burst_size(opt_netburst->get())
+        .nworker(opt_netnworker->get());
     papp = new HotStuffApp(opt_blk_size->get(),
                         opt_stat_period->get(),
                         opt_imp_timeout->get(),
@@ -258,7 +264,7 @@ HotStuffApp::HotStuffApp(uint32_t blk_size,
     stat_period(stat_period),
     impeach_timeout(impeach_timeout),
     ec(ec),
-    cn(ec, ClientNetwork<opcode_t>::Config()),
+    cn(ec, ClientNetwork<opcode_t>::Config().burst_size(1)),
     clisten_addr(clisten_addr) {
     /* register the handlers for msg from clients */
     cn.reg_handler(salticidae::generic_bind(&HotStuffApp::client_request_cmd_handler, this, _1, _2));
@@ -280,6 +286,7 @@ void HotStuffApp::client_request_cmd_handler(MsgReqCmd &&msg, const conn_t &conn
         });
     else
     {
+        /*
         auto it = unconfirmed.find(cmd_hash);
         if (it == unconfirmed.end())
             it = unconfirmed.insert(
@@ -287,6 +294,7 @@ void HotStuffApp::client_request_cmd_handler(MsgReqCmd &&msg, const conn_t &conn
         it->second.then([this, addr](const Finality &fin) {
             cn.send_msg(MsgRespCmd(std::move(fin)), addr);
         });
+        */
     }
 }
 
