@@ -125,10 +125,12 @@ class BlockDeliveryContext: public promise_t {
 class HotStuffBase: public HotStuffCore {
     using BlockFetchContext = FetchContext<ENT_TYPE_BLK>;
     using CmdFetchContext = FetchContext<ENT_TYPE_CMD>;
-    using Net = PeerNetwork<opcode_t>;
 
     friend BlockFetchContext;
     friend CmdFetchContext;
+
+    public:
+    using Net = PeerNetwork<opcode_t>;
 
     protected:
     /** the binding address in replica network */
@@ -202,7 +204,7 @@ class HotStuffBase: public HotStuffCore {
             pacemaker_bt pmaker,
             EventContext ec,
             size_t nworker,
-            const Net::Config &config = Net::Config());
+            const Net::Config &config);
 
     ~HotStuffBase();
 
@@ -266,14 +268,16 @@ class HotStuff: public HotStuffBase {
             NetAddr listen_addr,
             pacemaker_bt pmaker,
             EventContext ec = EventContext(),
-            size_t nworker = 4):
+            size_t nworker = 4,
+            const Net::Config &config = Net::Config()):
         HotStuffBase(blk_size,
                     rid,
                     new PrivKeyType(raw_privkey),
                     listen_addr,
                     std::move(pmaker),
                     ec,
-                    nworker) {}
+                    nworker,
+                    config) {}
 
     void add_replica(ReplicaID idx, const NetAddr &addr, const bytearray_t &pubkey_raw) {
         DataStream s(pubkey_raw);

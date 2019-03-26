@@ -118,7 +118,8 @@ class HotStuffApp: public HotStuff {
                 NetAddr clisten_addr,
                 hotstuff::pacemaker_bt pmaker,
                 const EventContext &ec,
-                size_t nworker);
+                size_t nworker,
+                const Net::Config &config);
 
     void start();
 };
@@ -151,6 +152,7 @@ int main(int argc, char **argv) {
     auto opt_qc_timeout = Config::OptValDouble::create(0.5);
     auto opt_imp_timeout = Config::OptValDouble::create(11);
     auto opt_nworker = Config::OptValInt::create(4);
+    auto opt_netnworker = Config::OptValInt::create(4);
 
     config.add_opt("block-size", opt_blk_size, Config::SET_VAL);
     config.add_opt("parent-limit", opt_parent_limit, Config::SET_VAL);
@@ -164,6 +166,7 @@ int main(int argc, char **argv) {
     config.add_opt("qc-timeout", opt_qc_timeout, Config::SET_VAL, 't', "set QC timeout (for sticky)");
     config.add_opt("imp-timeout", opt_imp_timeout, Config::SET_VAL, 'u', "set impeachment timeout (for sticky)");
     config.add_opt("nworker", opt_nworker, Config::SET_VAL, 'n', "the number of threads for verification");
+    config.add_opt("netnworker", opt_nworker, Config::SET_VAL, 'm', "the number of threads for network");
     config.add_opt("help", opt_help, Config::SWITCH_ON, 'h', "show this help info");
 
     EventContext ec;
@@ -209,6 +212,8 @@ int main(int argc, char **argv) {
     else
         pmaker = new hotstuff::PaceMakerDummyFixed(opt_fixed_proposer->get(), parent_limit);
 
+    HotStuffApp::Net::Config netconfig;
+    netconfig.nworker(opt_netnworker->get());
     papp = new HotStuffApp(opt_blk_size->get(),
                         opt_stat_period->get(),
                         opt_imp_timeout->get(),
@@ -218,7 +223,8 @@ int main(int argc, char **argv) {
                         NetAddr("0.0.0.0", client_port),
                         std::move(pmaker),
                         ec,
-                        opt_nworker->get());
+                        opt_nworker->get(),
+                        netconfig);
     for (size_t i = 0; i < replicas.size(); i++)
     {
         auto p = split_ip_port_cport(replicas[i].first);
@@ -245,9 +251,10 @@ HotStuffApp::HotStuffApp(uint32_t blk_size,
                         NetAddr clisten_addr,
                         hotstuff::pacemaker_bt pmaker,
                         const EventContext &ec,
-                        size_t nworker):
+                        size_t nworker,
+                        const Net::Config &config):
     HotStuff(blk_size, idx, raw_privkey,
-            plisten_addr, std::move(pmaker), ec, nworker),
+            plisten_addr, std::move(pmaker), ec, nworker, config),
     stat_period(stat_period),
     impeach_timeout(impeach_timeout),
     ec(ec),
