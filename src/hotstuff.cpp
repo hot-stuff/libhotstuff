@@ -362,13 +362,13 @@ HotStuffBase::HotStuffBase(uint32_t blk_size,
                     pacemaker_bt pmaker,
                     EventContext ec,
                     size_t nworker,
-                    const Net::Config &config):
+                    const Net::Config &netconfig):
         HotStuffCore(rid, std::move(priv_key)),
         listen_addr(listen_addr),
         blk_size(blk_size),
         ec(ec),
         vpool(ec, nworker),
-        pn(ec, config),
+        pn(ec, netconfig),
         pmaker(std::move(pmaker)),
 
         fetched(0), delivered(0),

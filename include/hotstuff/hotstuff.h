@@ -204,7 +204,7 @@ class HotStuffBase: public HotStuffCore {
             pacemaker_bt pmaker,
             EventContext ec,
             size_t nworker,
-            const Net::Config &config);
+            const Net::Config &netconfig);
 
     ~HotStuffBase();
 
@@ -269,7 +269,7 @@ class HotStuff: public HotStuffBase {
             pacemaker_bt pmaker,
             EventContext ec = EventContext(),
             size_t nworker = 4,
-            const Net::Config &config = Net::Config()):
+            const Net::Config &netconfig = Net::Config()):
         HotStuffBase(blk_size,
                     rid,
                     new PrivKeyType(raw_privkey),
@@ -277,7 +277,7 @@ class HotStuff: public HotStuffBase {
                     std::move(pmaker),
                     ec,
                     nworker,
-                    config) {}
+                    netconfig) {}
 
     void add_replica(ReplicaID idx, const NetAddr &addr, const bytearray_t &pubkey_raw) {
         DataStream s(pubkey_raw);
