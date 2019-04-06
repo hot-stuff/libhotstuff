@@ -140,7 +140,7 @@ class HotStuffBase: public HotStuffCore {
     /** libevent handle */
     EventContext ec;
     VeriPool vpool;
-    std::unordered_set<NetAddr> peers;
+    std::vector<NetAddr> peers;
 
     private:
     /** whether libevent handle is owned by itself */
@@ -212,8 +212,7 @@ class HotStuffBase: public HotStuffCore {
 
     /* Submit the command to be decided. */
     promise_t exec_command(uint256_t cmd);
-    void add_replica(ReplicaID idx, const NetAddr &addr, pubkey_bt &&pub_key);
-    void start(bool ec_loop = false);
+    void start(std::vector<std::pair<NetAddr, pubkey_bt>> &&replicas, bool ec_loop = false);
 
     size_t size() const { return peers.size(); }
     PaceMaker &get_pace_maker() { return *pmaker; }
@@ -279,9 +278,11 @@ class HotStuff: public HotStuffBase {
                     nworker,
                     netconfig) {}
 
-    void add_replica(ReplicaID idx, const NetAddr &addr, const bytearray_t &pubkey_raw) {
-        DataStream s(pubkey_raw);
-        HotStuffBase::add_replica(idx, addr, new PubKeyType(pubkey_raw));
+    void start(const std::vector<std::pair<NetAddr, bytearray_t>> &replicas, bool ec_loop = false) {
+        std::vector<std::pair<NetAddr, pubkey_bt>> reps;
+        for (auto &r: replicas)
+            reps.push_back(std::make_pair(r.first, new PubKeyType(r.second)));
+        HotStuffBase::start(std::move(reps), ec_loop);
     }
 };
 

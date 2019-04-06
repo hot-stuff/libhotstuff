@@ -120,16 +120,6 @@ promise_t HotStuffBase::exec_command(uint256_t cmd_hash) {
     return it->second;
 }
 
-void HotStuffBase::add_replica(ReplicaID idx, const NetAddr &addr,
-                                pubkey_bt &&pub_key) {
-    HotStuffCore::add_replica(idx, addr, std::move(pub_key));
-    if (addr != listen_addr)
-    {
-        peers.insert(addr);
-        pn.add_peer(addr);
-    }
-}
-
 void HotStuffBase::on_fetch_blk(const block_t &blk) {
 #ifdef HOTSTUFF_BLK_PROFILE
     blk_profiler.get_tx(blk->get_hash());
@@ -393,8 +383,9 @@ HotStuffBase::HotStuffBase(uint32_t blk_size,
 
 void HotStuffBase::do_broadcast_proposal(const Proposal &prop) {
     MsgPropose prop_msg(prop);
-    for (const auto &replica: peers)
-        pn.send_msg(prop_msg, replica);
+    pn.multicast_msg(prop_msg, peers);
+    //for (const auto &replica: peers)
+    //    pn.send_msg(prop_msg, replica);
 }
 
 void HotStuffBase::do_vote(ReplicaID last_proposer, const Vote &vote) {
@@ -423,7 +414,18 @@ void HotStuffBase::do_decide(Finality &&fin) {
 
 HotStuffBase::~HotStuffBase() {}
 
-void HotStuffBase::start(bool ec_loop) {
+void HotStuffBase::start(std::vector<std::pair<NetAddr, pubkey_bt>> &&replicas, bool ec_loop) {
+    for (size_t i = 0; i < replicas.size(); i++)
+    {
+        auto &addr = replicas[i].first;
+        HotStuffCore::add_replica(i, addr, std::move(replicas[i].second));
+        if (addr != listen_addr)
+        {
+            peers.push_back(addr);
+            pn.add_peer(addr);
+        }
+    }
+
     /* ((n - 1) + 1 - 1) / 3 */
     uint32_t nfaulty = peers.size() / 3;
     if (nfaulty == 0)
