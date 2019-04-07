@@ -110,6 +110,11 @@ class HotStuffApp: public HotStuff {
         */
     }
 
+#ifdef HOTSTUFF_MSG_STAT
+    std::unordered_set<conn_t> client_conns;
+    void print_stat() const;
+#endif
+
     public:
     HotStuffApp(uint32_t blk_size,
                 double stat_period,
@@ -313,6 +318,7 @@ void HotStuffApp::client_request_cmd_handler(MsgReqCmd &&msg, const conn_t &conn
 void HotStuffApp::start(const std::vector<std::pair<NetAddr, bytearray_t>> &reps) {
     ev_stat_timer = TimerEvent(ec, [this](TimerEvent &) {
         HotStuff::print_stat();
+        HotStuffApp::print_stat();
         //HotStuffCore::prune(100);
         ev_stat_timer.add(stat_period);
     });
@@ -327,6 +333,35 @@ void HotStuffApp::start(const std::vector<std::pair<NetAddr, bytearray_t>> &reps
     HOTSTUFF_LOG_INFO("conns = %lu", HotStuff::size());
     HOTSTUFF_LOG_INFO("** starting the event loop...");
     HotStuff::start(reps);
+    cn.reg_conn_handler([this](const salticidae::ConnPool::conn_t &_conn, bool connected) {
+        auto conn = salticidae::static_pointer_cast<conn_t::type>(_conn);
+        if (connected)
+            client_conns.insert(conn);
+        else
+            client_conns.erase(conn);
+    });
     /* enter the event main loop */
     ec.dispatch();
+}
+
+void HotStuffApp::print_stat() const {
+#ifdef HOTSTUFF_MSG_STAT
+    HOTSTUFF_LOG_INFO("--- client msg. (10s) ---");
+    size_t _nsent = 0;
+    size_t _nrecv = 0;
+    for (const auto &conn: client_conns)
+    {
+        if (conn == nullptr) continue;
+        size_t ns = conn->get_nsent();
+        size_t nr = conn->get_nrecv();
+        size_t nsb = conn->get_nsentb();
+        size_t nrb = conn->get_nrecvb();
+        conn->clear_msgstat();
+        HOTSTUFF_LOG_INFO("%s: %u(%u), %u(%u)",
+            std::string(conn->get_addr()).c_str(), ns, nsb, nr, nrb);
+        _nsent += ns;
+        _nrecv += nr;
+    }
+    HOTSTUFF_LOG_INFO("--- end client msg. ---");
+#endif
 }
