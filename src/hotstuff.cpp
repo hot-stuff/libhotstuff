@@ -326,10 +326,11 @@ void HotStuffBase::print_stat() const {
         if (conn == nullptr) continue;
         size_t ns = conn->get_nsent();
         size_t nr = conn->get_nrecv();
-        conn->clear_nsent();
-        conn->clear_nrecv();
-        LOG_INFO("%s: %u, %u, %u",
-            std::string(replica).c_str(), ns, nr, part_fetched_replica[replica]);
+        size_t nsb = conn->get_nsentb();
+        size_t nrb = conn->get_nrecvb();
+        conn->clear_msgstat();
+        LOG_INFO("%s: %u(%u), %u(%u), %u",
+            std::string(replica).c_str(), ns, nsb, nr, nrb, part_fetched_replica[replica]);
         _nsent += ns;
         _nrecv += nr;
         part_fetched_replica[replica] = 0;
