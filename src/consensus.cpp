@@ -33,16 +33,14 @@ namespace hotstuff {
 HotStuffCore::HotStuffCore(ReplicaID id,
                             privkey_bt &&priv_key):
         b0(new Block(true, 1)),
-        bqc(b0),
         bexec(b0),
         vheight(0),
         priv_key(std::move(priv_key)),
-        tails{bqc},
+        tails{b0},
         neg_vote(false),
         id(id),
         storage(new EntityStorage()) {
     storage->add_blk(b0);
-    b0->qc_ref = b0;
 }
 
 void HotStuffCore::sanity_check_delivered(const block_t &blk) {
@@ -84,8 +82,20 @@ bool HotStuffCore::on_deliver_blk(const block_t &blk) {
     return true;
 }
 
-void HotStuffCore::check_commit(const block_t &_blk) {
-    const block_t &blk = _blk->qc_ref;
+void HotStuffCore::update_hqc(const block_t &_hqc, const quorum_cert_bt &qc) {
+    if (_hqc->height > hqc.first->height)
+    {
+        hqc = std::make_pair(_hqc, qc->clone());
+        on_hqc_update();
+    }
+}
+
+void HotStuffCore::update(const block_t &nblk) {
+    const block_t &blk = nblk->qc_ref;
+    if (blk == nullptr)
+        throw std::runtime_error("empty qc_ref");
+    update_hqc(blk, nblk->qc);
+    /* check for commit */
     if (blk->qc_ref == nullptr) return;
     /* decided blk could possible be incomplete due to pruning */
     if (blk->decision) return;
@@ -117,18 +127,6 @@ void HotStuffCore::check_commit(const block_t &_blk) {
     bexec = p;
 }
 
-bool HotStuffCore::update(const uint256_t &bqc_hash) {
-    block_t _bqc = get_delivered_blk(bqc_hash);
-    if (_bqc->qc_ref == nullptr) return false;
-    check_commit(_bqc);
-    if (_bqc->qc_ref->height > bqc->qc_ref->height)
-    {
-        bqc = _bqc;
-        on_bqc_update();
-    }
-    return true;
-}
-
 void HotStuffCore::on_propose(const std::vector<uint256_t> &cmds,
                             const std::vector<block_t> &parents,
                             bytearray_t &&extra) {
@@ -139,7 +137,7 @@ void HotStuffCore::on_propose(const std::vector<uint256_t> &cmds,
     quorum_cert_bt qc = nullptr;
     block_t qc_ref = nullptr;
     /* a block can optionally carray a QC */
-    if (p != b0 && p->voted.size() >= config.nmajority)
+    if (p->voted.size() >= config.nmajority)
     {
         qc = p->self_qc->clone();
         qc_ref = p;
@@ -155,15 +153,15 @@ void HotStuffCore::on_propose(const std::vector<uint256_t> &cmds,
     const uint256_t bnew_hash = bnew->get_hash();
     bnew->self_qc = create_quorum_cert(bnew_hash);
     on_deliver_blk(bnew);
-    update(bnew_hash);
-    Proposal prop(id, bqc->get_hash(), bnew, nullptr);
+    update(bnew);
+    Proposal prop(id, bnew, nullptr);
     LOG_PROTO("propose %s", std::string(*bnew).c_str());
     /* self-vote */
     if (bnew->height <= vheight)
         throw std::runtime_error("new block should be higher than vheight");
     vheight = bnew->height;
     on_receive_vote(
-        Vote(id, bqc->get_hash(), bnew_hash,
+        Vote(id, bnew_hash,
             create_part_cert(*priv_key, bnew_hash), this));
     on_propose_(prop);
     /* boradcast to other replicas */
@@ -171,14 +169,14 @@ void HotStuffCore::on_propose(const std::vector<uint256_t> &cmds,
 }
 
 void HotStuffCore::on_receive_proposal(const Proposal &prop) {
-    if (!update(prop.bqc_hash)) return;
     LOG_PROTO("got %s", std::string(prop).c_str());
     block_t bnew = prop.blk;
     sanity_check_delivered(bnew);
+    update(bnew);
     bool opinion = false;
     if (bnew->height > vheight)
     {
-        block_t pref = bqc->qc_ref;
+        block_t pref = hqc.first;
         block_t b;
         for (b = bnew;
             b->height > pref->height;
@@ -195,14 +193,11 @@ void HotStuffCore::on_receive_proposal(const Proposal &prop) {
     on_receive_proposal_(prop);
     if (opinion && !neg_vote)
         do_vote(prop.proposer,
-            Vote(id,
-                bqc->get_hash(),
-                bnew->get_hash(),
+            Vote(id, bnew->get_hash(),
                 create_part_cert(*priv_key, bnew->get_hash()), this));
 }
 
 void HotStuffCore::on_receive_vote(const Vote &vote) {
-    if (!update(vote.bqc_hash)) return;
     LOG_PROTO("got %s", std::string(vote).c_str());
     LOG_PROTO("now state: %s", std::string(*this).c_str());
     block_t blk = get_delivered_blk(vote.blk_hash);
@@ -225,10 +220,18 @@ void HotStuffCore::on_receive_vote(const Vote &vote) {
     {
         qc->compute();
         on_qc_finish(blk);
+        update_hqc(blk, qc);
     }
 }
 /*** end HotStuff protocol logic ***/
-void HotStuffCore::on_init(uint32_t nfaulty) { config.nmajority = 2 * nfaulty + 1; }
+void HotStuffCore::on_init(uint32_t nfaulty) {
+    config.nmajority = 2 * nfaulty + 1;
+    b0->qc = create_quorum_cert(b0->get_hash());
+    b0->qc->compute();
+    b0->self_qc = b0->qc->clone();
+    b0->qc_ref = b0;
+    hqc = std::make_pair(b0, b0->qc->clone());
+}
 
 void HotStuffCore::prune(uint32_t staleness) {
     block_t start;
@@ -292,9 +295,9 @@ promise_t HotStuffCore::async_wait_receive_proposal() {
     });
 }
 
-promise_t HotStuffCore::async_bqc_update() {
-    return bqc_update_waiting.then([this]() {
-        return bqc;
+promise_t HotStuffCore::async_hqc_update() {
+    return hqc_update_waiting.then([this]() {
+        return hqc.first;
     });
 }
 
@@ -310,17 +313,17 @@ void HotStuffCore::on_receive_proposal_(const Proposal &prop) {
     t.resolve(prop);
 }
 
-void HotStuffCore::on_bqc_update() {
-    auto t = std::move(bqc_update_waiting);
-    bqc_update_waiting = promise_t();
+void HotStuffCore::on_hqc_update() {
+    auto t = std::move(hqc_update_waiting);
+    hqc_update_waiting = promise_t();
     t.resolve();
 }
 
 HotStuffCore::operator std::string () const {
     DataStream s;
     s << "<hotstuff "
-      << "bqc=" << get_hex10(bqc->get_hash()) << " "
-      << "bqc.rheight=" << std::to_string(bqc->qc_ref->height) << " "
+      << "hqc=" << get_hex10(hqc.first->get_hash()) << " "
+      << "hqc.height=" << std::to_string(hqc.first->height) << " "
       << "bexec=" << get_hex10(bexec->get_hash()) << " "
       << "vheight=" << std::to_string(vheight) << " "
       << "tails=" << std::to_string(tails.size()) << ">";

@@ -38,7 +38,7 @@ class HotStuffCore {
     block_t b0;                                  /** the genesis block */
     /* === state variables === */
     /** block containing the QC for the highest block having one */
-    block_t bqc;
+    std::pair<block_t, quorum_cert_bt> hqc;
     block_t bexec;                            /**< last executed block */
     uint32_t vheight;          /**< height of the block last voted for */
     /* === auxilliary variables === */
@@ -49,16 +49,16 @@ class HotStuffCore {
     std::unordered_map<block_t, promise_t> qc_waiting;
     promise_t propose_waiting;
     promise_t receive_proposal_waiting;
-    promise_t bqc_update_waiting;
+    promise_t hqc_update_waiting;
     /* == feature switches == */
     /** always vote negatively, useful for some PaceMakers */
     bool neg_vote;
 
     block_t get_delivered_blk(const uint256_t &blk_hash);
     void sanity_check_delivered(const block_t &blk);
-    void check_commit(const block_t &_bqc);
-    bool update(const uint256_t &bqc_hash);
-    void on_bqc_update();
+    void update(const block_t &nblk);
+    void update_hqc(const block_t &_hqc, const quorum_cert_bt &qc);
+    void on_hqc_update();
     void on_qc_finish(const block_t &blk);
     void on_propose_(const Proposal &prop);
     void on_receive_proposal_(const Proposal &prop);
@@ -152,12 +152,12 @@ class HotStuffCore {
     promise_t async_wait_proposal();
     /** Get a promise resolved when a new proposal is received. */
     promise_t async_wait_receive_proposal();
-    /** Get a promise resolved when bqc is updated. */
-    promise_t async_bqc_update();
+    /** Get a promise resolved when hqc is updated. */
+    promise_t async_hqc_update();
 
     /* Other useful functions */
     const block_t &get_genesis() { return b0; }
-    const block_t &get_bqc() { return bqc; }
+    const block_t &get_hqc() { return hqc.first; }
     const ReplicaConfig &get_config() { return config; }
     ReplicaID get_id() const { return id; }
     const std::set<block_t, BlockHeightCmp> get_tails() const { return tails; }
@@ -168,34 +168,27 @@ class HotStuffCore {
 /** Abstraction for proposal messages. */
 struct Proposal: public Serializable {
     ReplicaID proposer;
-    /** hash for the block containing the highest QC */
-    uint256_t bqc_hash;
     /** block being proposed */
     block_t blk;
-
     /** handle of the core object to allow polymorphism. The user should use
      * a pointer to the object of the class derived from HotStuffCore */
     HotStuffCore *hsc;
 
     Proposal(): blk(nullptr), hsc(nullptr) {}
     Proposal(ReplicaID proposer,
-            const uint256_t &bqc_hash,
             const block_t &blk,
             HotStuffCore *hsc):
         proposer(proposer),
-        bqc_hash(bqc_hash),
         blk(blk), hsc(hsc) {}
 
     void serialize(DataStream &s) const override {
         s << proposer
-          << bqc_hash
           << *blk;
     }
 
     void unserialize(DataStream &s) override {
         assert(hsc != nullptr);
-        s >> proposer
-          >> bqc_hash;
+        s >> proposer;
         Block _blk;
         _blk.unserialize(s, hsc);
         blk = hsc->storage->add_blk(std::move(_blk), hsc->get_config());
@@ -205,7 +198,6 @@ struct Proposal: public Serializable {
         DataStream s;
         s << "<proposal "
           << "rid=" << std::to_string(proposer) << " "
-          << "bqc=" << get_hex10(bqc_hash) << " "
           << "blk=" << get_hex10(blk->get_hash()) << ">";
         return std::move(s);
     }
@@ -214,11 +206,9 @@ struct Proposal: public Serializable {
 /** Abstraction for vote messages. */
 struct Vote: public Serializable {
     ReplicaID voter;
-    /** hash for the block containing the highest QC */
-    uint256_t bqc_hash;
     /** block being voted */
     uint256_t blk_hash;
-    /** proof of validity for the vote (nullptr for a negative vote) */
+    /** proof of validity for the vote */
     part_cert_bt cert;
     
     /** handle of the core object to allow polymorphism */
@@ -226,18 +216,15 @@ struct Vote: public Serializable {
 
     Vote(): cert(nullptr), hsc(nullptr) {}
     Vote(ReplicaID voter,
-        const uint256_t &bqc_hash,
         const uint256_t &blk_hash,
         part_cert_bt &&cert,
         HotStuffCore *hsc):
         voter(voter),
-        bqc_hash(bqc_hash),
         blk_hash(blk_hash),
         cert(std::move(cert)), hsc(hsc) {}
 
     Vote(const Vote &other):
         voter(other.voter),
-        bqc_hash(other.bqc_hash),
         blk_hash(other.blk_hash),
         cert(other.cert ? other.cert->clone() : nullptr),
         hsc(other.hsc) {}
@@ -245,23 +232,13 @@ struct Vote: public Serializable {
     Vote(Vote &&other) = default;
     
     void serialize(DataStream &s) const override {
-        s << voter
-          << bqc_hash
-          << blk_hash;
-        if (cert == nullptr)
-            s << (uint8_t)0;
-        else
-            s << (uint8_t)1 << *cert;
+        s << voter << blk_hash << *cert;
     }
 
     void unserialize(DataStream &s) override {
         assert(hsc != nullptr);
-        uint8_t has_cert;
-        s >> voter
-          >> bqc_hash
-          >> blk_hash
-          >> has_cert;
-        cert = has_cert ? hsc->parse_part_cert(s) : nullptr;
+        s >> voter >> blk_hash;
+        cert = hsc->parse_part_cert(s);
     }
 
     bool verify() const {
@@ -281,9 +258,7 @@ struct Vote: public Serializable {
         DataStream s;
         s << "<vote "
           << "rid=" << std::to_string(voter) << " "
-          << "bqc=" << get_hex10(bqc_hash) << " "
-          << "blk=" << get_hex10(blk_hash) << " "
-          << "cert=" << (cert ? "yes" : "no") << ">";
+          << "blk=" << get_hex10(blk_hash) << ">";
         return std::move(s);
     }
 };

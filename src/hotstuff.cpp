@@ -223,7 +223,8 @@ promise_t HotStuffBase::async_deliver_blk(const uint256_t &blk_hash,
         /* the parents should be delivered */
         for (const auto &phash: blk->get_parent_hashes())
             pms.push_back(async_deliver_blk(phash, replica_id));
-        pms.push_back(blk->verify(get_config(), vpool));
+        if (blk != get_genesis())
+            pms.push_back(blk->verify(get_config(), vpool));
         promise::all(pms).then([this, blk]() {
             on_deliver_blk(blk);
         });
@@ -238,8 +239,7 @@ void HotStuffBase::propose_handler(MsgPropose &&msg, const Net::conn_t &conn) {
     block_t blk = prop.blk;
     if (!blk) return;
     promise::all(std::vector<promise_t>{
-        async_deliver_blk(prop.bqc_hash, peer),
-        async_deliver_blk(blk->get_hash(), peer),
+        async_deliver_blk(blk->get_hash(), peer)
     }).then([this, prop = std::move(prop)]() {
         on_receive_proposal(prop);
     });
@@ -251,11 +251,10 @@ void HotStuffBase::vote_handler(MsgVote &&msg, const Net::conn_t &conn) {
     //auto &vote = msg.vote;
     RcObj<Vote> v(new Vote(std::move(msg.vote)));
     promise::all(std::vector<promise_t>{
-        async_deliver_blk(v->bqc_hash, peer),
         async_deliver_blk(v->blk_hash, peer),
         v->verify(vpool),
     }).then([this, v=std::move(v)](const promise::values_t values) {
-        if (!promise::any_cast<bool>(values[2]))
+        if (!promise::any_cast<bool>(values[1]))
             LOG_WARN("invalid vote from %d", v->voter);
         else
             on_receive_vote(*v);
@@ -415,7 +414,9 @@ void HotStuffBase::do_decide(Finality &&fin) {
 
 HotStuffBase::~HotStuffBase() {}
 
-void HotStuffBase::start(std::vector<std::pair<NetAddr, pubkey_bt>> &&replicas, bool ec_loop) {
+void HotStuffBase::start(
+        std::vector<std::pair<NetAddr, pubkey_bt>> &&replicas,
+        bool ec_loop) {
     for (size_t i = 0; i < replicas.size(); i++)
     {
         auto &addr = replicas[i].first;
