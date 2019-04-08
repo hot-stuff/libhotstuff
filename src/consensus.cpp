@@ -119,10 +119,9 @@ void HotStuffCore::update(const block_t &nblk) {
         const block_t &blk = *it;
         blk->decision = 1;
         LOG_PROTO("commit %s", std::string(*blk).c_str());
-        size_t idx = 0;
-        for (auto cmd: blk->cmds)
-            do_decide(Finality(id, 1, idx, blk->height,
-                                cmd, blk->get_hash()));
+        for (size_t i = 0; i < blk->cmds.size(); i++)
+            do_decide(Finality(id, 1, i, blk->height,
+                                blk->cmds[i], blk->get_hash()));
     }
     bexec = p;
 }

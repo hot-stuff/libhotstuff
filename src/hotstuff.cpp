@@ -85,10 +85,11 @@ promise_t HotStuffBase::exec_command(uint256_t cmd_hash) {
         });
 
     auto it = decision_waiting.find(cmd_hash);
+    promise_t pm{};
     if (it == decision_waiting.end())
     {
         cmd_pending.push(cmd_hash);
-        it = decision_waiting.insert(std::make_pair(cmd_hash, promise_t())).first;
+        it = decision_waiting.insert(std::make_pair(cmd_hash, pm)).first;
     }
 
     if (cmd_pending.size() >= blk_size)
@@ -117,7 +118,7 @@ promise_t HotStuffBase::exec_command(uint256_t cmd_hash) {
                 on_propose(cmds, pmaker->get_parents());
         });
     }
-    return it->second;
+    return pm;
 }
 
 void HotStuffBase::on_fetch_blk(const block_t &blk) {
