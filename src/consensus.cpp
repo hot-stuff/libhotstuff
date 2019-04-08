@@ -224,7 +224,7 @@ void HotStuffCore::on_receive_vote(const Vote &vote) {
 }
 /*** end HotStuff protocol logic ***/
 void HotStuffCore::on_init(uint32_t nfaulty) {
-    config.nmajority = 2 * nfaulty + 1;
+    config.nmajority = config.nreplicas - nfaulty;
     b0->qc = create_quorum_cert(b0->get_hash());
     b0->qc->compute();
     b0->self_qc = b0->qc->clone();
