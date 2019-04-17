@@ -51,6 +51,7 @@ class PaceMaker {
     virtual promise_t beat_resp(ReplicaID last_proposer) = 0;
     /** Impeach the current proposer. */
     virtual void impeach() {}
+    virtual size_t get_pending_size() = 0;
 };
 
 using pacemaker_bt = BoxObj<PaceMaker>;
@@ -166,6 +167,9 @@ class PMWaitQC: public virtual PaceMaker {
     }
 
     public:
+
+    size_t get_pending_size() override { return pending_beats.size(); }
+
     void init() {
         last_proposed = hsc->get_genesis();
         locked = false;
@@ -455,6 +459,8 @@ class PMStickyProposer: virtual public PaceMaker {
     PMStickyProposer(double qc_timeout, const EventContext &ec):
         qc_timeout(qc_timeout), ec(ec) {}
 
+    size_t get_pending_size() override { return pending_beats.size(); }
+
     void init() { to_candidate(); }
 
     ReplicaID get_proposer() override {
@@ -705,6 +711,8 @@ class PMRoundRobinProposer: virtual public PaceMaker {
     public:
     PMRoundRobinProposer(double qc_timeout, const EventContext &ec):
         qc_timeout(qc_timeout), ec(ec), proposer(0) {}
+
+    size_t get_pending_size() override { return pending_beats.size(); }
 
     void init() {
         to_candidate();

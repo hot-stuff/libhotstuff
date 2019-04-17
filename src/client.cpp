@@ -20,5 +20,8 @@ namespace hotstuff {
 
 const opcode_t MsgReqCmd::opcode;
 const opcode_t MsgRespCmd::opcode;
+#ifdef HOTSTUFF_AUTOCLI
+const opcode_t MsgDemandCmd::opcode;
+#endif
 
 }
