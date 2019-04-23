@@ -78,7 +78,9 @@ class HotStuffApp: public HotStuff {
     /** The listen address for client RPC */
     NetAddr clisten_addr;
 
+#if HOTSTUFF_CMD_RESPSIZE > 0
     std::unordered_map<const uint256_t, promise_t> unconfirmed;
+#endif
 
     using conn_t = ClientNetwork<opcode_t>::conn_t;
 
@@ -100,14 +102,14 @@ class HotStuffApp: public HotStuff {
 #ifndef HOTSTUFF_ENABLE_BENCHMARK
         HOTSTUFF_LOG_INFO("replicated %s", std::string(fin).c_str());
 #endif
-        /*
+#if HOTSTUFF_CMD_RESPSIZE > 0
         auto it = unconfirmed.find(fin.cmd_hash);
         if (it != unconfirmed.end())
         {
             it->second.resolve(fin);
             unconfirmed.erase(it);
         }
-        */
+#endif
     }
 
 #ifdef HOTSTUFF_AUTOCLI
@@ -311,9 +313,9 @@ void HotStuffApp::client_request_cmd_handler(MsgReqCmd &&msg, const conn_t &conn
         exec_command(cmd_hash).then([this, addr](Finality fin) {
             cn.send_msg(MsgRespCmd(fin), addr);
         });
+#if HOTSTUFF_CMD_RESPSIZE > 0
     else
     {
-        /*
         auto it = unconfirmed.find(cmd_hash);
         if (it == unconfirmed.end())
             it = unconfirmed.insert(
@@ -321,8 +323,8 @@ void HotStuffApp::client_request_cmd_handler(MsgReqCmd &&msg, const conn_t &conn
         it->second.then([this, addr](const Finality &fin) {
             cn.send_msg(MsgRespCmd(std::move(fin)), addr);
         });
-        */
     }
+#endif
 }
 
 void HotStuffApp::start(const std::vector<std::pair<NetAddr, bytearray_t>> &reps) {
