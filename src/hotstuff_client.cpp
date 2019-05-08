@@ -52,12 +52,10 @@ uint32_t cnt = 0;
 uint32_t nfaulty;
 
 struct Request {
-    ReplicaID rid;
     command_t cmd;
     size_t confirmed;
     salticidae::ElapsedTime et;
-    Request(ReplicaID rid, const command_t &cmd):
-        rid(rid), cmd(cmd), confirmed(0) { et.start(); }
+    Request(const command_t &cmd): cmd(cmd), confirmed(0) { et.start(); }
 };
 
 using Net = salticidae::MsgNetwork<opcode_t>;
@@ -73,18 +71,10 @@ void connect_all() {
         conns.insert(std::make_pair(i, mn.connect(replicas[i])));
 }
 
-void set_proposer(ReplicaID rid) {
-    proposer = rid;
-//    auto it = conns.find(rid);
-//    if (it == conns.end())
-//        conns.insert(std::make_pair(rid, mn.connect(replicas[rid])));
-}
-
 bool try_send(bool check = true) {
     if ((!check || waiting.size() < max_async_num) && max_iter_num)
     {
         auto cmd = new CommandDummy(cid, cnt++);
-        //mn.send_msg(MsgReqCmd(*cmd), *conns.at(proposer));
         MsgReqCmd msg(*cmd);
         for (auto &p: conns) mn.send_msg(msg, p.second);
 #ifndef HOTSTUFF_ENABLE_BENCHMARK
@@ -92,7 +82,7 @@ bool try_send(bool check = true) {
                             get_hex(cmd->get_hash()).c_str());
 #endif
         waiting.insert(std::make_pair(
-            cmd->get_hash(), Request(proposer, cmd)));
+            cmd->get_hash(), Request(cmd)));
         if (max_iter_num > 0)
             max_iter_num--;
         return true;
@@ -108,24 +98,7 @@ void client_resp_cmd_handler(MsgRespCmd &&msg, const Net::conn_t &) {
     auto &et = it->second.et;
     if (it == waiting.end()) return;
     et.stop();
-//    if (fin.rid != proposer)
-//    {
-//        HOTSTUFF_LOG_INFO("reconnect to the new proposer");
-//        set_proposer(fin.rid);
-//    }
-//    if (fin.rid != it->second.rid)
-//    {
-//        mn.send_msg(MsgReqCmd(*(waiting.find(cmd_hash)->second.cmd)),
-//                    *conns.at(proposer));
-//#ifndef HOTSTUFF_ENABLE_BENCHMARK
-//        HOTSTUFF_LOG_INFO("resend cmd %.10s",
-//                            get_hex(cmd_hash).c_str());
-//#endif
-//        et.start();
-//        it->second.rid = proposer;
-//        return;
-//    }
-//    if (++it->second.confirmed <= nfaulty) return; // wait for f + 1 ack
+    if (++it->second.confirmed <= nfaulty) return; // wait for f + 1 ack
 #ifndef HOTSTUFF_ENABLE_BENCHMARK
     HOTSTUFF_LOG_INFO("got %s, wall: %.3f, cpu: %.3f",
                         std::string(fin).c_str(),
@@ -141,12 +114,12 @@ void client_resp_cmd_handler(MsgRespCmd &&msg, const Net::conn_t &) {
 #endif
 }
 
-#ifdef HOTSTUFF_AUTOCLI
-void client_demand_cmd_handler(hotstuff::MsgDemandCmd &&msg, const Net::conn_t &) {
-    for (size_t i = 0; i < msg.ncmd; i++)
-        try_send(false);
-}
-#endif
+//#ifdef HOTSTUFF_AUTOCLI
+//void client_demand_cmd_handler(hotstuff::MsgDemandCmd &&msg, const Net::conn_t &) {
+//    for (size_t i = 0; i < msg.ncmd; i++)
+//        try_send(false);
+//}
+//#endif
 
 std::pair<std::string, std::string> split_ip_port_cport(const std::string &s) {
     auto ret = salticidae::trim_all(salticidae::split(s, ";"));
@@ -169,9 +142,9 @@ int main(int argc, char **argv) {
     ev_sigterm.add(SIGTERM);
 
     mn.reg_handler(client_resp_cmd_handler);
-#ifdef HOTSTUFF_AUTOCLI
-    mn.reg_handler(client_demand_cmd_handler);
-#endif
+//#ifdef HOTSTUFF_AUTOCLI
+//    mn.reg_handler(client_demand_cmd_handler);
+//#endif
     mn.start();
 
     config.add_opt("idx", opt_idx, Config::SET_VAL);
@@ -205,7 +178,6 @@ int main(int argc, char **argv) {
     nfaulty = (replicas.size() - 1) / 3;
     HOTSTUFF_LOG_INFO("nfaulty = %zu", nfaulty);
     connect_all();
-    set_proposer(idx);
     while (try_send());
     ec.dispatch();
 

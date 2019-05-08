@@ -78,9 +78,9 @@ class HotStuffApp: public HotStuff {
     /** The listen address for client RPC */
     NetAddr clisten_addr;
 
-#if HOTSTUFF_CMD_RESPSIZE > 0
+//#if HOTSTUFF_CMD_RESPSIZE > 0
     std::unordered_map<const uint256_t, promise_t> unconfirmed;
-#endif
+//#endif
 
     using conn_t = ClientNetwork<opcode_t>::conn_t;
 
@@ -102,25 +102,25 @@ class HotStuffApp: public HotStuff {
 #ifndef HOTSTUFF_ENABLE_BENCHMARK
         HOTSTUFF_LOG_INFO("replicated %s", std::string(fin).c_str());
 #endif
-#if HOTSTUFF_CMD_RESPSIZE > 0
+//#if HOTSTUFF_CMD_RESPSIZE > 0
         auto it = unconfirmed.find(fin.cmd_hash);
         if (it != unconfirmed.end())
         {
             it->second.resolve(fin);
             unconfirmed.erase(it);
         }
-#endif
+//#endif
     }
 
-#ifdef HOTSTUFF_AUTOCLI
-    void do_demand_commands(size_t blk_size) override {
-        size_t ncli = client_conns.size();
-        size_t bsize = (blk_size + ncli - 1) / ncli;
-        hotstuff::MsgDemandCmd mdc{bsize};
-        for(const auto &conn: client_conns)
-            cn.send_msg(mdc, conn);
-    }
-#endif
+//#ifdef HOTSTUFF_AUTOCLI
+//    void do_demand_commands(size_t blk_size) override {
+//        size_t ncli = client_conns.size();
+//        size_t bsize = (blk_size + ncli - 1) / ncli;
+//        hotstuff::MsgDemandCmd mdc{bsize};
+//        for(const auto &conn: client_conns)
+//            cn.send_msg(mdc, conn);
+//    }
+//#endif
 
 #ifdef HOTSTUFF_MSG_STAT
     std::unordered_set<conn_t> client_conns;
@@ -313,7 +313,7 @@ void HotStuffApp::client_request_cmd_handler(MsgReqCmd &&msg, const conn_t &conn
         exec_command(cmd_hash).then([this, addr](Finality fin) {
             cn.send_msg(MsgRespCmd(fin), addr);
         });
-#if HOTSTUFF_CMD_RESPSIZE > 0
+//#if HOTSTUFF_CMD_RESPSIZE > 0
     else
     {
         auto it = unconfirmed.find(cmd_hash);
@@ -324,7 +324,7 @@ void HotStuffApp::client_request_cmd_handler(MsgReqCmd &&msg, const conn_t &conn
             cn.send_msg(MsgRespCmd(std::move(fin)), addr);
         });
     }
-#endif
+//#endif
 }
 
 void HotStuffApp::start(const std::vector<std::pair<NetAddr, bytearray_t>> &reps) {

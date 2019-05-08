@@ -217,9 +217,9 @@ class HotStuffBase: public HotStuffCore {
     size_t size() const { return peers.size(); }
     PaceMaker &get_pace_maker() { return *pmaker; }
     void print_stat() const;
-#ifdef HOTSTUFF_AUTOCLI
-    virtual void do_demand_commands(size_t) {}
-#endif
+//#ifdef HOTSTUFF_AUTOCLI
+//    virtual void do_demand_commands(size_t) {}
+//#endif
 
     /* Helper functions */
     /** Returns a promise resolved (with command_t cmd) when Command is fetched. */
