@@ -33,6 +33,7 @@ namespace hotstuff {
 HotStuffCore::HotStuffCore(ReplicaID id,
                             privkey_bt &&priv_key):
         b0(new Block(true, 1)),
+        block(b0),
         bexec(b0),
         vheight(0),
         priv_key(std::move(priv_key)),
@@ -91,28 +92,51 @@ void HotStuffCore::update_hqc(const block_t &_hqc, const quorum_cert_bt &qc) {
 }
 
 void HotStuffCore::update(const block_t &nblk) {
-    const block_t &blk = nblk->qc_ref;
-    if (blk == nullptr)
-        throw std::runtime_error("empty qc_ref");
-    update_hqc(blk, nblk->qc);
-    /* check for commit */
-    if (blk->qc_ref == nullptr) return;
+    /* nblk = b*, blk2 = b'', blk1 = b', blk = b */
+#ifndef HOTSTUFF_TWO_STEP
+    /* three-step HotStuff */
+    const block_t &blk2 = nblk->qc_ref;
+    if (blk2 == nullptr) return;
     /* decided blk could possible be incomplete due to pruning */
+    if (blk2->decision) return;
+    update_hqc(blk2, nblk->qc);
+
+    const block_t &blk1 = blk2->qc_ref;
+    if (blk1 == nullptr) return;
+    if (blk1->decision) return;
+    if (blk1->height > block->height) block = blk1;
+
+    const block_t &blk = blk1->qc_ref;
+    if (blk == nullptr) return;
     if (blk->decision) return;
-    block_t p = blk->parents[0];
-    if (p->decision) return;
+
     /* commit requires direct parent */
-    if (p != blk->qc_ref) return;
+    if (blk2->parents[0] != blk1 || blk1->parents[0] != blk) return;
+#else
+    /* two-step HotStuff */
+    const block_t &blk1 = nblk->qc_ref;
+    if (blk1 == nullptr) return;
+    if (blk1->decision) return;
+    update_hqc(blk1, nblk->qc);
+    if (blk1->height > block->height) block = blk1;
+
+    const block_t &blk = blk1->qc_ref;
+    if (blk == nullptr) return;
+    if (blk->decision) return;
+
+    /* commit requires direct parent */
+    if (blk1->parents[0] != blk) return;
+#endif
     /* otherwise commit */
     std::vector<block_t> commit_queue;
     block_t b;
-    for (b = p; b->height > bexec->height; b = b->parents[0])
+    for (b = blk; b->height > bexec->height; b = b->parents[0])
     { /* TODO: also commit the uncles/aunts */
         commit_queue.push_back(b);
     }
     if (b != bexec)
         throw std::runtime_error("safety breached :( " +
-                                std::string(*p) + " " +
+                                std::string(*blk) + " " +
                                 std::string(*bexec));
     for (auto it = commit_queue.rbegin(); it != commit_queue.rend(); it++)
     {
@@ -123,7 +147,7 @@ void HotStuffCore::update(const block_t &nblk) {
             do_decide(Finality(id, 1, i, blk->height,
                                 blk->cmds[i], blk->get_hash()));
     }
-    bexec = p;
+    bexec = blk;
 }
 
 void HotStuffCore::on_propose(const std::vector<uint256_t> &cmds,
@@ -175,15 +199,19 @@ void HotStuffCore::on_receive_proposal(const Proposal &prop) {
     bool opinion = false;
     if (bnew->height > vheight)
     {
-        block_t pref = hqc.first;
-        block_t b;
-        for (b = bnew;
-            b->height > pref->height;
-            b = b->parents[0]);
-        if (b == pref) /* on the same branch */
-        {
-            opinion = true;
-            vheight = bnew->height;
+        if (bnew->qc_ref && bnew->qc_ref->height > block->height)
+            opinion = true; // liveness condition
+        else
+        {   // safety condition (extend the locked branch)
+            block_t b;
+            for (b = bnew;
+                b->height > block->height;
+                b = b->parents[0]);
+            if (b == block) /* on the same branch */
+            {
+                opinion = true;
+                vheight = bnew->height;
+            }
         }
     }
     LOG_PROTO("now state: %s", std::string(*this).c_str());

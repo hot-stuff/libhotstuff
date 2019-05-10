@@ -39,6 +39,7 @@ class HotStuffCore {
     /* === state variables === */
     /** block containing the QC for the highest block having one */
     std::pair<block_t, quorum_cert_bt> hqc;
+    block_t block;                            /**< locked block */
     block_t bexec;                            /**< last executed block */
     uint32_t vheight;          /**< height of the block last voted for */
     /* === auxilliary variables === */

@@ -6,5 +6,6 @@
 #cmakedefine HOTSTUFF_PROTO_LOG
 #cmakedefine HOTSTUFF_MSG_STAT
 #cmakedefine HOTSTUFF_BLK_PROFILE
+#cmakedefine HOTSTUFF_TWO_STEP
 
 #endif

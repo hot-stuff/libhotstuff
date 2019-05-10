@@ -78,6 +78,7 @@ option(HOTSTUFF_NORMAL_LOG "enable normal log" ON)
 option(HOTSTUFF_PROTO_LOG "enable protocol log" OFF)
 option(HOTSTUFF_MSG_STAT "eanble message statistics" ON)
 option(HOTSTUFF_BLK_PROFILE "enable block profiling" OFF)
+option(HOTSTUFF_TWO_STEP "use two-step HotStuff (instead of three-step HS)" OFF)
 
 configure_file(src/config.h.in include/hotstuff/config.h @ONLY)
 
