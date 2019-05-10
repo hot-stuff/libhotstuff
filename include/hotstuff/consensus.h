@@ -38,9 +38,9 @@ class HotStuffCore {
     block_t b0;                                  /** the genesis block */
     /* === state variables === */
     /** block containing the QC for the highest block having one */
-    std::pair<block_t, quorum_cert_bt> hqc;
-    block_t block;                            /**< locked block */
-    block_t bexec;                            /**< last executed block */
+    std::pair<block_t, quorum_cert_bt> hqc;   /**< highest QC */
+    block_t b_lock;                            /**< locked block */
+    block_t b_exec;                            /**< last executed block */
     uint32_t vheight;          /**< height of the block last voted for */
     /* === auxilliary variables === */
     privkey_bt priv_key;            /**< private key for signing votes */
@@ -53,7 +53,7 @@ class HotStuffCore {
     promise_t hqc_update_waiting;
     /* == feature switches == */
     /** always vote negatively, useful for some PaceMakers */
-    bool neg_vote;
+    bool vote_disabled;
 
     block_t get_delivered_blk(const uint256_t &blk_hash);
     void sanity_check_delivered(const block_t &blk);
@@ -163,7 +163,7 @@ class HotStuffCore {
     ReplicaID get_id() const { return id; }
     const std::set<block_t, BlockHeightCmp> get_tails() const { return tails; }
     operator std::string () const;
-    void set_neg_vote(bool _neg_vote) { neg_vote = _neg_vote; }
+    void set_vote_disabled(bool f) { vote_disabled = f; }
 };
 
 /** Abstraction for proposal messages. */

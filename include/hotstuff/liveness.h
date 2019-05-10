@@ -404,7 +404,7 @@ class PMStickyProposer: virtual public PaceMaker {
         role = FOLLOWER;
         proposer = new_proposer;
         last_proposed = nullptr;
-        hsc->set_neg_vote(false);
+        hsc->set_vote_disabled(false);
         timer.clear();
         /* redirect all pending cmds to the new proposer */
         while (!pending_beats.empty())
@@ -421,7 +421,7 @@ class PMStickyProposer: virtual public PaceMaker {
         role = PROPOSER;
         proposer = hsc->get_id();
         last_proposed = nullptr;
-        hsc->set_neg_vote(true);
+        hsc->set_vote_disabled(true);
         timer = TimerEvent(ec, [this](TimerEvent &) {
             /* proposer unable to get a QC in time */
             to_candidate();
@@ -436,7 +436,7 @@ class PMStickyProposer: virtual public PaceMaker {
         role = CANDIDATE;
         proposer = hsc->get_id();
         last_proposed = nullptr;
-        hsc->set_neg_vote(false);
+        hsc->set_vote_disabled(false);
         timer = TimerEvent(ec, [this](TimerEvent &) {
             candidate_qc_timeout();
         });
@@ -660,7 +660,7 @@ class PMRoundRobinProposer: virtual public PaceMaker {
         clear_promises();
         role = FOLLOWER;
         last_proposed = nullptr;
-        hsc->set_neg_vote(false);
+        hsc->set_vote_disabled(false);
         timer.clear();
         /* redirect all pending cmds to the new proposer */
         while (!pending_beats.empty())
@@ -676,7 +676,7 @@ class PMRoundRobinProposer: virtual public PaceMaker {
         clear_promises();
         role = PROPOSER;
         last_proposed = nullptr;
-        hsc->set_neg_vote(true);
+        hsc->set_vote_disabled(true);
         timer = TimerEvent(ec, [this](TimerEvent &) {
             /* proposer unable to get a QC in time */
             to_candidate();
@@ -689,7 +689,7 @@ class PMRoundRobinProposer: virtual public PaceMaker {
         clear_promises();
         role = CANDIDATE;
         last_proposed = nullptr;
-        hsc->set_neg_vote(false);
+        hsc->set_vote_disabled(false);
         timer = TimerEvent(ec, [this](TimerEvent &) {
             candidate_qc_timeout();
         });

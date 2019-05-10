@@ -33,12 +33,12 @@ namespace hotstuff {
 HotStuffCore::HotStuffCore(ReplicaID id,
                             privkey_bt &&priv_key):
         b0(new Block(true, 1)),
-        block(b0),
-        bexec(b0),
+        b_lock(b0),
+        b_exec(b0),
         vheight(0),
         priv_key(std::move(priv_key)),
         tails{b0},
-        neg_vote(false),
+        vote_disabled(false),
         id(id),
         storage(new EntityStorage()) {
     storage->add_blk(b0);
@@ -104,7 +104,7 @@ void HotStuffCore::update(const block_t &nblk) {
     const block_t &blk1 = blk2->qc_ref;
     if (blk1 == nullptr) return;
     if (blk1->decision) return;
-    if (blk1->height > block->height) block = blk1;
+    if (blk1->height > b_lock->height) b_lock = blk1;
 
     const block_t &blk = blk1->qc_ref;
     if (blk == nullptr) return;
@@ -118,7 +118,7 @@ void HotStuffCore::update(const block_t &nblk) {
     if (blk1 == nullptr) return;
     if (blk1->decision) return;
     update_hqc(blk1, nblk->qc);
-    if (blk1->height > block->height) block = blk1;
+    if (blk1->height > b_lock->height) b_lock = blk1;
 
     const block_t &blk = blk1->qc_ref;
     if (blk == nullptr) return;
@@ -130,14 +130,14 @@ void HotStuffCore::update(const block_t &nblk) {
     /* otherwise commit */
     std::vector<block_t> commit_queue;
     block_t b;
-    for (b = blk; b->height > bexec->height; b = b->parents[0])
+    for (b = blk; b->height > b_exec->height; b = b->parents[0])
     { /* TODO: also commit the uncles/aunts */
         commit_queue.push_back(b);
     }
-    if (b != bexec)
+    if (b != b_exec)
         throw std::runtime_error("safety breached :( " +
                                 std::string(*blk) + " " +
-                                std::string(*bexec));
+                                std::string(*b_exec));
     for (auto it = commit_queue.rbegin(); it != commit_queue.rend(); it++)
     {
         const block_t &blk = *it;
@@ -147,7 +147,7 @@ void HotStuffCore::update(const block_t &nblk) {
             do_decide(Finality(id, 1, i, blk->height,
                                 blk->cmds[i], blk->get_hash()));
     }
-    bexec = blk;
+    b_exec = blk;
 }
 
 void HotStuffCore::on_propose(const std::vector<uint256_t> &cmds,
@@ -199,15 +199,18 @@ void HotStuffCore::on_receive_proposal(const Proposal &prop) {
     bool opinion = false;
     if (bnew->height > vheight)
     {
-        if (bnew->qc_ref && bnew->qc_ref->height > block->height)
+        if (bnew->qc_ref && bnew->qc_ref->height > b_lock->height)
+        {
             opinion = true; // liveness condition
+            vheight = bnew->height;
+        }
         else
         {   // safety condition (extend the locked branch)
             block_t b;
             for (b = bnew;
-                b->height > block->height;
+                b->height > b_lock->height;
                 b = b->parents[0]);
-            if (b == block) /* on the same branch */
+            if (b == b_lock) /* on the same branch */
             {
                 opinion = true;
                 vheight = bnew->height;
@@ -218,7 +221,7 @@ void HotStuffCore::on_receive_proposal(const Proposal &prop) {
     if (bnew->qc_ref)
         on_qc_finish(bnew->qc_ref);
     on_receive_proposal_(prop);
-    if (opinion && !neg_vote)
+    if (opinion && !vote_disabled)
         do_vote(prop.proposer,
             Vote(id, bnew->get_hash(),
                 create_part_cert(*priv_key, bnew->get_hash()), this));
@@ -263,7 +266,7 @@ void HotStuffCore::on_init(uint32_t nfaulty) {
 void HotStuffCore::prune(uint32_t staleness) {
     block_t start;
     /* skip the blocks */
-    for (start = bexec; staleness; staleness--, start = start->parents[0])
+    for (start = b_exec; staleness; staleness--, start = start->parents[0])
         if (!start->parents.size()) return;
     std::stack<block_t> s;
     start->qc_ref = nullptr;
@@ -351,7 +354,8 @@ HotStuffCore::operator std::string () const {
     s << "<hotstuff "
       << "hqc=" << get_hex10(hqc.first->get_hash()) << " "
       << "hqc.height=" << std::to_string(hqc.first->height) << " "
-      << "bexec=" << get_hex10(bexec->get_hash()) << " "
+      << "b_lock=" << get_hex10(b_lock->get_hash()) << " "
+      << "b_exec=" << get_hex10(b_exec->get_hash()) << " "
       << "vheight=" << std::to_string(vheight) << " "
       << "tails=" << std::to_string(tails.size()) << ">";
     return std::move(s);
