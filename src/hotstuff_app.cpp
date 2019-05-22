@@ -69,6 +69,8 @@ class HotStuffApp: public HotStuff {
     double stat_period;
     double impeach_timeout;
     EventContext ec;
+    EventContext req_ec;
+    EventContext resp_ec;
     /** Network messaging between a replica and its client. */
     ClientNetwork<opcode_t> cn;
     /** Timer object to schedule a periodic printing of system statistics */
@@ -84,10 +86,11 @@ class HotStuffApp: public HotStuff {
     using resp_queue_t = salticidae::MPSCQueueEventDriven<Finality>;
 
     /* for the dedicated thread sending responses to the clients */
-    EventContext resp_ec;
+    std::thread req_thread;
     std::thread resp_thread;
     resp_queue_t resp_queue;
     salticidae::BoxObj<salticidae::ThreadCall> resp_tcall;
+    salticidae::BoxObj<salticidae::ThreadCall> req_tcall;
 
     void client_request_cmd_handler(MsgReqCmd &&, const conn_t &);
 
@@ -292,10 +295,11 @@ HotStuffApp::HotStuffApp(uint32_t blk_size,
     stat_period(stat_period),
     impeach_timeout(impeach_timeout),
     ec(ec),
-    cn(ec, clinet_config),
+    cn(req_ec, clinet_config),
     clisten_addr(clisten_addr) {
     /* prepare the thread used for sending back confirmations */
     resp_tcall = new salticidae::ThreadCall(resp_ec);
+    req_tcall = new salticidae::ThreadCall(req_ec);
     resp_queue.reg_handler(resp_ec, [this](resp_queue_t &q) {
         Finality fin;
         while (q.try_dequeue(fin))
@@ -320,16 +324,10 @@ void HotStuffApp::client_request_cmd_handler(MsgReqCmd &&msg, const conn_t &conn
     const NetAddr addr = conn->get_addr();
     auto cmd = parse_cmd(msg.serialized);
     const auto &cmd_hash = cmd->get_hash();
-    std::vector<promise_t> pms;
     HOTSTUFF_LOG_DEBUG("processing %s", std::string(*cmd).c_str());
-    // record the data of the command
-    storage->add_cmd(cmd);
-    if (get_pace_maker().get_proposer() == get_id())
-    {
-        exec_command(cmd_hash).then([this, addr](Finality fin) {
-            resp_queue.enqueue(fin);
-        });
-    }
+    exec_command(cmd_hash, [this, addr](Finality fin) {
+        resp_queue.enqueue(fin);
+    });
     /* the following function is executed on the dedicated thread for confirming commands */
     resp_tcall->async_call([this, addr, cmd_hash](salticidae::ThreadCall::Handle &) {
         auto it = unconfirmed.find(cmd_hash);
@@ -367,15 +365,21 @@ void HotStuffApp::start(const std::vector<std::pair<NetAddr, bytearray_t>> &reps
         else
             client_conns.erase(conn);
     });
+    req_thread = std::thread([this]() { req_ec.dispatch(); });
     resp_thread = std::thread([this]() { resp_ec.dispatch(); });
     /* enter the event main loop */
     ec.dispatch();
 }
 
 void HotStuffApp::stop() {
+    papp->req_tcall->async_call([this](salticidae::ThreadCall::Handle &) {
+        req_ec.stop();
+    });
     papp->resp_tcall->async_call([this](salticidae::ThreadCall::Handle &) {
         resp_ec.stop();
     });
+
+    req_thread.join();
     resp_thread.join();
     ec.stop();
 }

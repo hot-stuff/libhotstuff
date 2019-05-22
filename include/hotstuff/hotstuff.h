@@ -131,6 +131,7 @@ class HotStuffBase: public HotStuffCore {
 
     public:
     using Net = PeerNetwork<opcode_t>;
+    using commit_cb_t = std::function<void(const Finality &)>;
 
     protected:
     /** the binding address in replica network */
@@ -154,8 +155,10 @@ class HotStuffBase: public HotStuffCore {
     /* queues for async tasks */
     std::unordered_map<const uint256_t, BlockFetchContext> blk_fetch_waiting;
     std::unordered_map<const uint256_t, BlockDeliveryContext> blk_delivery_waiting;
-    std::unordered_map<const uint256_t, promise_t> decision_waiting;
-    std::queue<uint256_t> cmd_pending;
+    std::unordered_map<const uint256_t, commit_cb_t> decision_waiting;
+    using cmd_queue_t = salticidae::MPSCQueueEventDriven<std::pair<uint256_t, commit_cb_t>>;
+    cmd_queue_t cmd_pending;
+    std::queue<uint256_t> cmd_pending_buffer;
 
     /* statistics */
     uint64_t fetched;
@@ -211,7 +214,7 @@ class HotStuffBase: public HotStuffCore {
     /* the API for HotStuffBase */
 
     /* Submit the command to be decided. */
-    promise_t exec_command(uint256_t cmd);
+    void exec_command(uint256_t cmd_hash, commit_cb_t callback);
     void start(std::vector<std::pair<NetAddr, pubkey_bt>> &&replicas, bool ec_loop = false);
 
     size_t size() const { return peers.size(); }
