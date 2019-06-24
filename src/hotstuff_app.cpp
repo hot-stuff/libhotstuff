@@ -335,7 +335,11 @@ void HotStuffApp::client_request_cmd_handler(MsgReqCmd &&msg, const conn_t &conn
             it = unconfirmed.insert(
                 std::make_pair(cmd_hash, promise_t([](promise_t &){}))).first;
         it->second.then([this, addr](const Finality &fin) {
-            cn.send_msg(MsgRespCmd(std::move(fin)), addr);
+            try {
+                cn.send_msg(MsgRespCmd(std::move(fin)), addr);
+            } catch (std::exception &err) {
+                HOTSTUFF_LOG_WARN("unable to send to the client: %s", err.what());
+            }
         });
     });
 }
@@ -364,6 +368,7 @@ void HotStuffApp::start(const std::vector<std::pair<NetAddr, bytearray_t>> &reps
             client_conns.insert(conn);
         else
             client_conns.erase(conn);
+        return true;
     });
     req_thread = std::thread([this]() { req_ec.dispatch(); });
     resp_thread = std::thread([this]() { resp_ec.dispatch(); });
