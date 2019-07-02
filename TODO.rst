@@ -1,10 +1,5 @@
-- fix potential bug: make sure smart (shared) pointers are thread-safe in messages
-- verify proposer id
-- do not need to vote null
-
-- Implement a basic long-standing leader PaceMaker (WIP)
-
-  - Add nounce field to blocks ?
-  - Or add proposer's ID + signature to blocks ?
-
-- Persistent protocol state (for safety)
+- Finish a decent Pacemaker (Round-Robin Pacemaker with exponential backoff)
+- Add a PoW-based Pacemaker
+- Branch pruning & swapping (the current implementation stores the entire chain in memory)
+- Limit the async events (improve robustness)
+- Persistent protocol state (recovery?)

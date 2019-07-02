@@ -55,4 +55,6 @@ TODO
 
 - Finish a decent Pacemaker (Round-Robin Pacemaker with exponential backoff)
 - Add a PoW-based Pacemaker
+- Branch pruning & swapping (the current implementation stores the entire chain in memory)
 - Limit the async events (improve robustness)
+- Persistent protocol state (recovery?)
