@@ -40,7 +40,7 @@ section may be incomplete and subject to changes.
 
     # install from the repo
     git clone https://github.com/hot-stuff/libhotstuff.git
-    cd hot-stuff/
+    cd libhotstuff/
     git submodule update --init --recursive
 
     # ensure openssl and libevent are installed on your machine
@@ -49,3 +49,10 @@ section may be incomplete and subject to changes.
 
     # start 4 demo replicas with scripts/run_demo.sh
     # start the demo client with scripts/run_demo_client.sh
+
+TODO
+====
+
+- Finish a decent Pacemaker (Round-Robin Pacemaker with exponential backoff)
+- Add a PoW-based Pacemaker
+- Limit the async events (improve robustness)
