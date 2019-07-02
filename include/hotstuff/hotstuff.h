@@ -148,6 +148,7 @@ class HotStuffBase: public HotStuffCore {
     bool ec_loop;
     /** network stack */
     Net pn;
+    std::unordered_set<uint256_t> valid_tls_certs;
 #ifdef HOTSTUFF_BLK_PROFILE
     BlockProfiler blk_profiler;
 #endif
@@ -189,6 +190,8 @@ class HotStuffBase: public HotStuffCore {
     /** receives a block */
     inline void resp_blk_handler(MsgRespBlock &&, const Net::conn_t &);
 
+    inline bool conn_handler(const salticidae::ConnPool::conn_t &, bool);
+
     void do_broadcast_proposal(const Proposal &) override;
     void do_vote(ReplicaID, const Vote &) override;
     void do_decide(Finality &&) override;
@@ -215,7 +218,8 @@ class HotStuffBase: public HotStuffCore {
 
     /* Submit the command to be decided. */
     void exec_command(uint256_t cmd_hash, commit_cb_t callback);
-    void start(std::vector<std::pair<NetAddr, pubkey_bt>> &&replicas, bool ec_loop = false);
+    void start(std::vector<std::tuple<NetAddr, pubkey_bt, uint256_t>> &&replicas,
+                bool ec_loop = false);
 
     size_t size() const { return peers.size(); }
     PaceMaker &get_pace_maker() { return *pmaker; }
@@ -284,10 +288,15 @@ class HotStuff: public HotStuffBase {
                     nworker,
                     netconfig) {}
 
-    void start(const std::vector<std::pair<NetAddr, bytearray_t>> &replicas, bool ec_loop = false) {
-        std::vector<std::pair<NetAddr, pubkey_bt>> reps;
+    void start(const std::vector<std::tuple<NetAddr, bytearray_t, bytearray_t>> &replicas, bool ec_loop = false) {
+        std::vector<std::tuple<NetAddr, pubkey_bt, uint256_t>> reps;
         for (auto &r: replicas)
-            reps.push_back(std::make_pair(r.first, new PubKeyType(r.second)));
+            reps.push_back(
+                std::make_tuple(
+                    std::get<0>(r),
+                    new PubKeyType(std::get<1>(r)),
+                    uint256_t(std::get<2>(r))
+                ));
         HotStuffBase::start(std::move(reps), ec_loop);
     }
 };

@@ -246,6 +246,16 @@ void HotStuffBase::resp_blk_handler(MsgRespBlock &&msg, const Net::conn_t &) {
         if (blk) on_fetch_blk(blk);
 }
 
+bool HotStuffBase::conn_handler(const salticidae::ConnPool::conn_t &conn, bool connected) {
+    if (connected)
+    {
+        auto cert = conn->get_peer_cert();
+        SALTICIDAE_LOG_INFO("%s", salticidae::get_hash(cert->get_der()).to_hex().c_str());
+        return (!cert) || valid_tls_certs.count(salticidae::get_hash(cert->get_der()));
+    }
+    return true;
+}
+
 void HotStuffBase::print_stat() const {
     LOG_INFO("===== begin stats =====");
     LOG_INFO("-------- queues -------");
@@ -339,6 +349,7 @@ HotStuffBase::HotStuffBase(uint32_t blk_size,
     pn.reg_handler(salticidae::generic_bind(&HotStuffBase::vote_handler, this, _1, _2));
     pn.reg_handler(salticidae::generic_bind(&HotStuffBase::req_blk_handler, this, _1, _2));
     pn.reg_handler(salticidae::generic_bind(&HotStuffBase::resp_blk_handler, this, _1, _2));
+    pn.reg_conn_handler(salticidae::generic_bind(&HotStuffBase::conn_handler, this, _1, _2));
     pn.start();
     pn.listen(listen_addr);
 }
@@ -377,12 +388,13 @@ void HotStuffBase::do_decide(Finality &&fin) {
 HotStuffBase::~HotStuffBase() {}
 
 void HotStuffBase::start(
-        std::vector<std::pair<NetAddr, pubkey_bt>> &&replicas,
+        std::vector<std::tuple<NetAddr, pubkey_bt, uint256_t>> &&replicas,
         bool ec_loop) {
     for (size_t i = 0; i < replicas.size(); i++)
     {
-        auto &addr = replicas[i].first;
-        HotStuffCore::add_replica(i, addr, std::move(replicas[i].second));
+        auto &addr = std::get<0>(replicas[i]);
+        HotStuffCore::add_replica(i, addr, std::move(std::get<1>(replicas[i])));
+        valid_tls_certs.insert(std::move(std::get<2>(replicas[i])));
         if (addr != listen_addr)
         {
             peers.push_back(addr);

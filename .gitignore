@@ -8,6 +8,7 @@ libsecp256k1-prefix/
 hotstuff-app
 hotstuff-client
 hotstuff-keygen
+hotstuff-tls-keygen
 libhotstuff.a
 src/*.swo
 src/*.swp

@@ -142,7 +142,7 @@ class HotStuffApp: public HotStuff {
                 const Net::Config &repnet_config,
                 const ClientNetwork<opcode_t>::Config &clinet_config);
 
-    void start(const std::vector<std::pair<NetAddr, bytearray_t>> &reps);
+    void start(const std::vector<std::tuple<NetAddr, bytearray_t, bytearray_t>> &reps);
     void stop();
 };
 
@@ -168,6 +168,8 @@ int main(int argc, char **argv) {
     auto opt_idx = Config::OptValInt::create(0);
     auto opt_client_port = Config::OptValInt::create(-1);
     auto opt_privkey = Config::OptValStr::create();
+    auto opt_tls_privkey = Config::OptValStr::create();
+    auto opt_tls_cert = Config::OptValStr::create();
     auto opt_help = Config::OptValFlag::create(false);
     auto opt_pace_maker = Config::OptValStr::create("dummy");
     auto opt_fixed_proposer = Config::OptValInt::create(1);
@@ -178,6 +180,7 @@ int main(int argc, char **argv) {
     auto opt_repburst = Config::OptValInt::create(100);
     auto opt_clinworker = Config::OptValInt::create(8);
     auto opt_cliburst = Config::OptValInt::create(1000);
+    auto opt_notls = Config::OptValFlag::create(false);
 
     config.add_opt("block-size", opt_blk_size, Config::SET_VAL);
     config.add_opt("parent-limit", opt_parent_limit, Config::SET_VAL);
@@ -186,6 +189,8 @@ int main(int argc, char **argv) {
     config.add_opt("idx", opt_idx, Config::SET_VAL, 'i', "specify the index in the replica list");
     config.add_opt("cport", opt_client_port, Config::SET_VAL, 'c', "specify the port listening for clients");
     config.add_opt("privkey", opt_privkey, Config::SET_VAL);
+    config.add_opt("tls-privkey", opt_tls_privkey, Config::SET_VAL);
+    config.add_opt("tls-cert", opt_tls_cert, Config::SET_VAL);
     config.add_opt("pace-maker", opt_pace_maker, Config::SET_VAL, 'p', "specify pace maker (sticky, dummy)");
     config.add_opt("proposer", opt_fixed_proposer, Config::SET_VAL, 'l', "set the fixed proposer (for dummy)");
     config.add_opt("qc-timeout", opt_qc_timeout, Config::SET_VAL, 't', "set QC timeout (for sticky)");
@@ -195,6 +200,7 @@ int main(int argc, char **argv) {
     config.add_opt("repburst", opt_repburst, Config::SET_VAL, 'b', "");
     config.add_opt("clinworker", opt_clinworker, Config::SET_VAL, 'M', "the number of threads for client network");
     config.add_opt("cliburst", opt_cliburst, Config::SET_VAL, 'B', "");
+    config.add_opt("notls", opt_notls, Config::SWITCH_ON, 's', "disable TLS");
     config.add_opt("help", opt_help, Config::SWITCH_ON, 'h', "show this help info");
 
     EventContext ec;
@@ -206,18 +212,18 @@ int main(int argc, char **argv) {
     }
     auto idx = opt_idx->get();
     auto client_port = opt_client_port->get();
-    std::vector<std::pair<std::string, std::string>> replicas;
+    std::vector<std::tuple<std::string, std::string, std::string>> replicas;
     for (const auto &s: opt_replicas->get())
     {
         auto res = trim_all(split(s, ","));
-        if (res.size() != 2)
+        if (res.size() != 3)
             throw HotStuffError("invalid replica info");
-        replicas.push_back(std::make_pair(res[0], res[1]));
+        replicas.push_back(std::make_tuple(res[0], res[1], res[2]));
     }
 
     if (!(0 <= idx && (size_t)idx < replicas.size()))
         throw HotStuffError("replica idx out of range");
-    std::string binding_addr = replicas[idx].first;
+    std::string binding_addr = std::get<0>(replicas[idx]);
     if (client_port == -1)
     {
         auto p = split_ip_port_cport(binding_addr);
@@ -242,6 +248,19 @@ int main(int argc, char **argv) {
 
     HotStuffApp::Net::Config repnet_config;
     ClientNetwork<opcode_t>::Config clinet_config;
+    if (!opt_tls_privkey->get().empty() && !opt_notls->get())
+    {
+        auto tls_priv_key = new salticidae::PKey(
+                salticidae::PKey::create_privkey_from_der(
+                    hotstuff::from_hex(opt_tls_privkey->get())));
+        auto tls_cert = new salticidae::X509(
+                salticidae::X509::create_from_der(
+                    hotstuff::from_hex(opt_tls_cert->get())));
+        repnet_config
+            .enable_tls(true)
+            .tls_key(tls_priv_key)
+            .tls_cert(tls_cert);
+    }
     repnet_config
         .burst_size(opt_repburst->get())
         .nworker(opt_repnworker->get());
@@ -260,12 +279,14 @@ int main(int argc, char **argv) {
                         opt_nworker->get(),
                         repnet_config,
                         clinet_config);
-    std::vector<std::pair<NetAddr, bytearray_t>> reps;
+    std::vector<std::tuple<NetAddr, bytearray_t, bytearray_t>> reps;
     for (auto &r: replicas)
     {
-        auto p = split_ip_port_cport(r.first);
-        reps.push_back(std::make_pair(
-            NetAddr(p.first), hotstuff::from_hex(r.second)));
+        auto p = split_ip_port_cport(std::get<0>(r));
+        reps.push_back(std::make_tuple(
+            NetAddr(p.first),
+            hotstuff::from_hex(std::get<1>(r)),
+            hotstuff::from_hex(std::get<2>(r))));
     }
     auto shutdown = [&](int) { papp->stop(); };
     salticidae::SigEvent ev_sigint(ec, shutdown);
@@ -344,7 +365,7 @@ void HotStuffApp::client_request_cmd_handler(MsgReqCmd &&msg, const conn_t &conn
     });
 }
 
-void HotStuffApp::start(const std::vector<std::pair<NetAddr, bytearray_t>> &reps) {
+void HotStuffApp::start(const std::vector<std::tuple<NetAddr, bytearray_t, bytearray_t>> &reps) {
     ev_stat_timer = TimerEvent(ec, [this](TimerEvent &) {
         HotStuff::print_stat();
         HotStuffApp::print_stat();

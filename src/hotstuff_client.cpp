@@ -156,13 +156,13 @@ int main(int argc, char **argv) {
     auto idx = opt_idx->get();
     max_iter_num = opt_max_iter_num->get();
     max_async_num = opt_max_async_num->get();
-    std::vector<std::pair<std::string, std::string>> raw;
+    std::vector<std::string> raw;
     for (const auto &s: opt_replicas->get())
     {
         auto res = salticidae::trim_all(salticidae::split(s, ","));
-        if (res.size() != 2)
+        if (res.size() < 1)
             throw HotStuffError("format error");
-        raw.push_back(std::make_pair(res[0], res[1]));
+        raw.push_back(res[0]);
     }
 
     if (!(0 <= idx && (size_t)idx < raw.size() && raw.size() > 0))
@@ -170,7 +170,7 @@ int main(int argc, char **argv) {
     cid = opt_cid->get() != -1 ? opt_cid->get() : idx;
     for (const auto &p: raw)
     {
-        auto _p = split_ip_port_cport(p.first);
+        auto _p = split_ip_port_cport(p);
         size_t _;
         replicas.push_back(NetAddr(NetAddr(_p.first).ip, htons(stoi(_p.second, &_))));
     }

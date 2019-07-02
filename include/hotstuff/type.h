@@ -73,6 +73,8 @@ class Cloneable {
 
 using ReplicaID = uint16_t;
 using opcode_t = uint8_t;
+using tls_pkey_bt = BoxObj<salticidae::PKey>;
+using tls_x509_bt = BoxObj<salticidae::X509>;
 
 }
 
