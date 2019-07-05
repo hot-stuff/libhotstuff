@@ -142,6 +142,7 @@ void HotStuffCore::update(const block_t &nblk) {
     {
         const block_t &blk = *it;
         blk->decision = 1;
+        do_consensus(blk);
         LOG_PROTO("commit %s", std::string(*blk).c_str());
         for (size_t i = 0; i < blk->cmds.size(); i++)
             do_decide(Finality(id, 1, i, blk->height,
@@ -150,7 +151,7 @@ void HotStuffCore::update(const block_t &nblk) {
     b_exec = blk;
 }
 
-void HotStuffCore::on_propose(const std::vector<uint256_t> &cmds,
+block_t HotStuffCore::on_propose(const std::vector<uint256_t> &cmds,
                             const std::vector<block_t> &parents,
                             bytearray_t &&extra) {
     if (parents.empty())
@@ -189,6 +190,7 @@ void HotStuffCore::on_propose(const std::vector<uint256_t> &cmds,
     on_propose_(prop);
     /* boradcast to other replicas */
     do_broadcast_proposal(prop);
+    return bnew;
 }
 
 void HotStuffCore::on_receive_proposal(const Proposal &prop) {
@@ -249,8 +251,8 @@ void HotStuffCore::on_receive_vote(const Vote &vote) {
     if (qsize + 1 == config.nmajority)
     {
         qc->compute();
-        on_qc_finish(blk);
         update_hqc(blk, qc);
+        on_qc_finish(blk);
     }
 }
 /*** end HotStuff protocol logic ***/

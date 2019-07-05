@@ -374,6 +374,10 @@ void HotStuffBase::do_vote(ReplicaID last_proposer, const Vote &vote) {
     });
 }
 
+void HotStuffBase::do_consensus(const block_t &blk) {
+    pmaker->on_consensus(blk);
+}
+
 void HotStuffBase::do_decide(Finality &&fin) {
     part_decided++;
     state_machine_execute(fin);

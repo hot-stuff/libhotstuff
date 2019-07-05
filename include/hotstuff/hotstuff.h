@@ -195,6 +195,7 @@ class HotStuffBase: public HotStuffCore {
     void do_broadcast_proposal(const Proposal &) override;
     void do_vote(ReplicaID, const Vote &) override;
     void do_decide(Finality &&) override;
+    void do_consensus(const block_t &blk) override;
 
     protected:
 
