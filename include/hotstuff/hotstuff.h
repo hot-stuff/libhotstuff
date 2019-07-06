@@ -27,7 +27,6 @@
 #include "salticidae/msg.h"
 #include "hotstuff/util.h"
 #include "hotstuff/consensus.h"
-#include "hotstuff/liveness.h"
 
 namespace hotstuff {
 
@@ -82,6 +81,7 @@ struct MsgRespBlock {
 using promise::promise_t;
 
 class HotStuffBase;
+using pacemaker_bt = BoxObj<class PaceMaker>;
 
 template<EntityType ent_type>
 class FetchContext: public promise_t {
@@ -140,6 +140,7 @@ class HotStuffBase: public HotStuffCore {
     size_t blk_size;
     /** libevent handle */
     EventContext ec;
+    salticidae::ThreadCall tcall;
     VeriPool vpool;
     std::vector<NetAddr> peers;
 
@@ -223,8 +224,10 @@ class HotStuffBase: public HotStuffCore {
                 bool ec_loop = false);
 
     size_t size() const { return peers.size(); }
-    PaceMaker &get_pace_maker() { return *pmaker; }
+    auto get_decision_waiting() const { return decision_waiting; }
+    PaceMaker *get_pace_maker() { return pmaker.get(); }
     void print_stat() const;
+    virtual void do_elected();
 //#ifdef HOTSTUFF_AUTOCLI
 //    virtual void do_demand_commands(size_t) {}
 //#endif

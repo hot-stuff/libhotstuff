@@ -37,7 +37,6 @@ using hotstuff::EventContext;
 using hotstuff::MsgReqCmd;
 using hotstuff::MsgRespCmd;
 using hotstuff::CommandDummy;
-using hotstuff::Finality;
 using hotstuff::HotStuffError;
 using hotstuff::uint256_t;
 using hotstuff::opcode_t;

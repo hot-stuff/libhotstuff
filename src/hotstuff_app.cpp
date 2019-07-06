@@ -35,6 +35,7 @@
 #include "hotstuff/util.h"
 #include "hotstuff/client.h"
 #include "hotstuff/hotstuff.h"
+#include "hotstuff/liveness.h"
 
 using salticidae::MsgNetwork;
 using salticidae::ClientNetwork;
@@ -111,6 +112,10 @@ class HotStuffApp: public HotStuff {
         HOTSTUFF_LOG_INFO("replicated %s", std::string(fin).c_str());
 #endif
         resp_queue.enqueue(fin);
+    }
+
+    void do_elected() override {
+        HotStuff::do_elected();
     }
 
 //#ifdef HOTSTUFF_AUTOCLI
@@ -191,7 +196,7 @@ int main(int argc, char **argv) {
     config.add_opt("privkey", opt_privkey, Config::SET_VAL);
     config.add_opt("tls-privkey", opt_tls_privkey, Config::SET_VAL);
     config.add_opt("tls-cert", opt_tls_cert, Config::SET_VAL);
-    config.add_opt("pace-maker", opt_pace_maker, Config::SET_VAL, 'p', "specify pace maker (sticky, dummy)");
+    config.add_opt("pace-maker", opt_pace_maker, Config::SET_VAL, 'p', "specify pace maker (dummy, rr)");
     config.add_opt("proposer", opt_fixed_proposer, Config::SET_VAL, 'l', "set the fixed proposer (for dummy)");
     config.add_opt("qc-timeout", opt_qc_timeout, Config::SET_VAL, 't', "set QC timeout (for sticky)");
     config.add_opt("imp-timeout", opt_imp_timeout, Config::SET_VAL, 'u', "set impeachment timeout (for sticky)");
@@ -239,12 +244,10 @@ int main(int argc, char **argv) {
 
     auto parent_limit = opt_parent_limit->get();
     hotstuff::pacemaker_bt pmaker;
-    if (opt_pace_maker->get() == "sticky")
-        pmaker = new hotstuff::PaceMakerSticky(parent_limit, opt_qc_timeout->get(), ec);
-    else if (opt_pace_maker->get() == "rr")
-        pmaker = new hotstuff::PaceMakerRR(parent_limit, opt_qc_timeout->get(), ec);
-    else
+    if (opt_pace_maker->get() == "dummy")
         pmaker = new hotstuff::PaceMakerDummyFixed(opt_fixed_proposer->get(), parent_limit);
+    else
+        pmaker = new hotstuff::PaceMakerRR(parent_limit, opt_qc_timeout->get(), ec);
 
     HotStuffApp::Net::Config repnet_config;
     ClientNetwork<opcode_t>::Config clinet_config;
@@ -374,10 +377,11 @@ void HotStuffApp::start(const std::vector<std::tuple<NetAddr, bytearray_t, bytea
     });
     ev_stat_timer.add(stat_period);
     impeach_timer = TimerEvent(ec, [this](TimerEvent &) {
-        get_pace_maker().impeach();
+        if (get_decision_waiting().size())
+            get_pace_maker()->impeach();
         reset_imp_timer();
     });
-    //impeach_timer.add(impeach_timeout);
+    impeach_timer.add(impeach_timeout);
     HOTSTUFF_LOG_INFO("** starting the system with parameters **");
     HOTSTUFF_LOG_INFO("blk_size = %lu", blk_size);
     HOTSTUFF_LOG_INFO("conns = %lu", HotStuff::size());

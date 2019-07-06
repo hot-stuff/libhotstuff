@@ -17,6 +17,7 @@
 
 #include "hotstuff/hotstuff.h"
 #include "hotstuff/client.h"
+#include "hotstuff/liveness.h"
 
 using salticidae::static_pointer_cast;
 
@@ -77,6 +78,17 @@ void MsgRespBlock::postponed_parse(HotStuffCore *hsc) {
 // TODO: improve this function
 void HotStuffBase::exec_command(uint256_t cmd_hash, commit_cb_t callback) {
     cmd_pending.enqueue(std::make_pair(cmd_hash, callback));
+}
+
+void HotStuffBase::do_elected() {
+    // TODO: improve this
+    tcall.async_call([this](salticidae::ThreadCall::Handle &) {
+        HOTSTUFF_LOG_PROTO("reproposing waiting commands");
+        std::vector<uint256_t> cmds;
+        for (auto &p: decision_waiting)
+            cmds.push_back(p.first);
+        on_propose(cmds, pmaker->get_parents());
+    });
 }
 
 void HotStuffBase::on_fetch_blk(const block_t &blk) {
@@ -329,6 +341,7 @@ HotStuffBase::HotStuffBase(uint32_t blk_size,
         listen_addr(listen_addr),
         blk_size(blk_size),
         ec(ec),
+        tcall(ec),
         vpool(ec, nworker),
         pn(ec, netconfig),
         pmaker(std::move(pmaker)),
@@ -420,21 +433,15 @@ void HotStuffBase::start(
         while (q.try_dequeue(e))
         {
             ReplicaID proposer = pmaker->get_proposer();
-            if (proposer != get_id()) continue;
 
             const auto &cmd_hash = e.first;
-            cmd_pending_buffer.push(cmd_hash);
-
             auto it = decision_waiting.find(cmd_hash);
             if (it == decision_waiting.end())
-            {
                 it = decision_waiting.insert(std::make_pair(cmd_hash, e.second)).first;
-            }
             else
-            {
-                // TODO: duplicate commands
-            }
-
+                e.second(Finality(id, 0, 0, 0, cmd_hash, uint256_t()));
+            if (proposer != get_id()) continue;
+            cmd_pending_buffer.push(cmd_hash);
             if (cmd_pending_buffer.size() >= blk_size)
             {
                 std::vector<uint256_t> cmds;
