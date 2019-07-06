@@ -114,20 +114,6 @@ class HotStuffApp: public HotStuff {
         resp_queue.enqueue(fin);
     }
 
-    void do_elected() override {
-        HotStuff::do_elected();
-    }
-
-//#ifdef HOTSTUFF_AUTOCLI
-//    void do_demand_commands(size_t blk_size) override {
-//        size_t ncli = client_conns.size();
-//        size_t bsize = (blk_size + ncli - 1) / ncli;
-//        hotstuff::MsgDemandCmd mdc{bsize};
-//        for(const auto &conn: client_conns)
-//            cn.send_msg(mdc, conn);
-//    }
-//#endif
-
 #ifdef HOTSTUFF_MSG_STAT
     std::unordered_set<conn_t> client_conns;
     void print_stat() const;
@@ -178,7 +164,8 @@ int main(int argc, char **argv) {
     auto opt_help = Config::OptValFlag::create(false);
     auto opt_pace_maker = Config::OptValStr::create("dummy");
     auto opt_fixed_proposer = Config::OptValInt::create(1);
-    auto opt_qc_timeout = Config::OptValDouble::create(0.5);
+    auto opt_base_timeout = Config::OptValDouble::create(1);
+    auto opt_prop_delay = Config::OptValDouble::create(1);
     auto opt_imp_timeout = Config::OptValDouble::create(11);
     auto opt_nworker = Config::OptValInt::create(1);
     auto opt_repnworker = Config::OptValInt::create(1);
@@ -198,7 +185,8 @@ int main(int argc, char **argv) {
     config.add_opt("tls-cert", opt_tls_cert, Config::SET_VAL);
     config.add_opt("pace-maker", opt_pace_maker, Config::SET_VAL, 'p', "specify pace maker (dummy, rr)");
     config.add_opt("proposer", opt_fixed_proposer, Config::SET_VAL, 'l', "set the fixed proposer (for dummy)");
-    config.add_opt("qc-timeout", opt_qc_timeout, Config::SET_VAL, 't', "set QC timeout (for sticky)");
+    config.add_opt("base-timeout", opt_base_timeout, Config::SET_VAL, 't', "set the initial timeout for the Round-Robin Pacemaker");
+    config.add_opt("prop-delay", opt_prop_delay, Config::SET_VAL, 't', "set the delay that follows the timeout for the Round-Robin Pacemaker");
     config.add_opt("imp-timeout", opt_imp_timeout, Config::SET_VAL, 'u', "set impeachment timeout (for sticky)");
     config.add_opt("nworker", opt_nworker, Config::SET_VAL, 'n', "the number of threads for verification");
     config.add_opt("repnworker", opt_repnworker, Config::SET_VAL, 'm', "the number of threads for replica network");
@@ -247,7 +235,7 @@ int main(int argc, char **argv) {
     if (opt_pace_maker->get() == "dummy")
         pmaker = new hotstuff::PaceMakerDummyFixed(opt_fixed_proposer->get(), parent_limit);
     else
-        pmaker = new hotstuff::PaceMakerRR(parent_limit, opt_qc_timeout->get(), ec);
+        pmaker = new hotstuff::PaceMakerRR(ec, parent_limit, opt_base_timeout->get(), opt_prop_delay->get());
 
     HotStuffApp::Net::Config repnet_config;
     ClientNetwork<opcode_t>::Config clinet_config;

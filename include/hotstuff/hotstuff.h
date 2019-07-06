@@ -224,10 +224,11 @@ class HotStuffBase: public HotStuffCore {
                 bool ec_loop = false);
 
     size_t size() const { return peers.size(); }
-    auto get_decision_waiting() const { return decision_waiting; }
+    const auto &get_decision_waiting() const { return decision_waiting; }
+    ThreadCall &get_tcall() { return tcall; }
     PaceMaker *get_pace_maker() { return pmaker.get(); }
     void print_stat() const;
-    virtual void do_elected();
+    virtual void do_elected() {}
 //#ifdef HOTSTUFF_AUTOCLI
 //    virtual void do_demand_commands(size_t) {}
 //#endif

@@ -80,17 +80,6 @@ void HotStuffBase::exec_command(uint256_t cmd_hash, commit_cb_t callback) {
     cmd_pending.enqueue(std::make_pair(cmd_hash, callback));
 }
 
-void HotStuffBase::do_elected() {
-    // TODO: improve this
-    tcall.async_call([this](salticidae::ThreadCall::Handle &) {
-        HOTSTUFF_LOG_PROTO("reproposing waiting commands");
-        std::vector<uint256_t> cmds;
-        for (auto &p: decision_waiting)
-            cmds.push_back(p.first);
-        on_propose(cmds, pmaker->get_parents());
-    });
-}
-
 void HotStuffBase::on_fetch_blk(const block_t &blk) {
 #ifdef HOTSTUFF_BLK_PROFILE
     blk_profiler.get_tx(blk->get_hash());

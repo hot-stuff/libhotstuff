@@ -227,7 +227,6 @@ class PaceMakerDummyFixed: public PaceMakerDummy {
  * Simple long-standing round-robin style proposer liveness gadget.
  */
 class PMRoundRobinProposer: virtual public PaceMaker {
-    double qc_timeout;
     double base_timeout;
     double exp_timeout;
     double prop_delay;
@@ -337,7 +336,19 @@ class PMRoundRobinProposer: virtual public PaceMaker {
         last_proposed = hsc->get_genesis();
         proposer_update_last_proposed();
         if (proposer == hsc->get_id())
-            static_cast<hotstuff::HotStuffBase *>(hsc)->do_elected();
+        {
+            auto hs = static_cast<hotstuff::HotStuffBase *>(hsc);
+            hs->do_elected();
+            hs->get_tcall().async_call([this, hs](salticidae::ThreadCall::Handle &) {
+                auto &pending = hs->get_decision_waiting();
+                if (!pending.size()) return;
+                HOTSTUFF_LOG_PROTO("reproposing pending commands");
+                std::vector<uint256_t> cmds;
+                for (auto &p: pending)
+                    cmds.push_back(p.first);
+                hs->on_propose(cmds, get_parents());
+            });
+        }
     }
 
     protected:
@@ -355,8 +366,11 @@ class PMRoundRobinProposer: virtual public PaceMaker {
     }
 
     public:
-    PMRoundRobinProposer(double qc_timeout, const EventContext &ec):
-        qc_timeout(qc_timeout), base_timeout(1), prop_delay(1), ec(ec), proposer(0), rotating(false) {}
+    PMRoundRobinProposer(const EventContext &ec,
+                        double base_timeout, double prop_delay):
+        base_timeout(base_timeout),
+        prop_delay(prop_delay),
+        ec(ec), proposer(0), rotating(false) {}
 
     size_t get_pending_size() override { return pending_beats.size(); }
 
@@ -391,8 +405,10 @@ class PMRoundRobinProposer: virtual public PaceMaker {
 };
 
 struct PaceMakerRR: public PMHighTail, public PMRoundRobinProposer {
-    PaceMakerRR(int32_t parent_limit, double qc_timeout, EventContext eb):
-        PMHighTail(parent_limit), PMRoundRobinProposer(qc_timeout, eb) {}
+    PaceMakerRR(EventContext ec, int32_t parent_limit,
+                double base_timeout = 1, double prop_delay = 1):
+        PMHighTail(parent_limit),
+        PMRoundRobinProposer(ec, base_timeout, prop_delay) {}
 
     void init(HotStuffCore *hsc) override {
         PaceMaker::init(hsc);
