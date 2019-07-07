@@ -157,21 +157,12 @@ block_t HotStuffCore::on_propose(const std::vector<uint256_t> &cmds,
     if (parents.empty())
         throw std::runtime_error("empty parents");
     for (const auto &_: parents) tails.erase(_);
-    block_t p = parents[0];
-    quorum_cert_bt qc = nullptr;
-    block_t qc_ref = nullptr;
-    /* a block can optionally carray a QC */
-    if (p->voted.size() >= config.nmajority)
-    {
-        qc = p->self_qc->clone();
-        qc_ref = p;
-    }
     /* create the new block */
     block_t bnew = storage->add_blk(
         new Block(parents, cmds,
-            std::move(qc), std::move(extra),
-            p->height + 1,
-            qc_ref,
+            hqc.second->clone(), std::move(extra),
+            parents[0]->height + 1,
+            hqc.first,
             nullptr
         ));
     const uint256_t bnew_hash = bnew->get_hash();

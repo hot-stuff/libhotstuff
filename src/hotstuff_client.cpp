@@ -108,17 +108,8 @@ void client_resp_cmd_handler(MsgRespCmd &&msg, const Net::conn_t &) {
     elapsed.push_back(std::make_pair(tv, et.elapsed_sec));
 #endif
     waiting.erase(it);
-#ifndef HOTSTUFF_AUTOCLI
     while (try_send());
-#endif
 }
-
-//#ifdef HOTSTUFF_AUTOCLI
-//void client_demand_cmd_handler(hotstuff::MsgDemandCmd &&msg, const Net::conn_t &) {
-//    for (size_t i = 0; i < msg.ncmd; i++)
-//        try_send(false);
-//}
-//#endif
 
 std::pair<std::string, std::string> split_ip_port_cport(const std::string &s) {
     auto ret = salticidae::trim_all(salticidae::split(s, ";"));
@@ -141,9 +132,6 @@ int main(int argc, char **argv) {
     ev_sigterm.add(SIGTERM);
 
     mn.reg_handler(client_resp_cmd_handler);
-//#ifdef HOTSTUFF_AUTOCLI
-//    mn.reg_handler(client_demand_cmd_handler);
-//#endif
     mn.start();
 
     config.add_opt("idx", opt_idx, Config::SET_VAL);

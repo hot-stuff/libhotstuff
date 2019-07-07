@@ -244,6 +244,7 @@ class PMRoundRobinProposer: virtual public PaceMaker {
     bool locked;
     promise_t pm_qc_finish;
     promise_t pm_wait_propose;
+    promise_t pm_qc_manual;
 
     void reg_proposal() {
         hsc->async_wait_proposal().then([this](const Proposal &prop) {
@@ -287,24 +288,24 @@ class PMRoundRobinProposer: virtual public PaceMaker {
         });
     }
 
-    void do_new_consensus(int x) {
-        auto dummy = hsc->on_propose(std::vector<uint256_t>{}, get_parents(), bytearray_t());
-        pm_qc_finish.reject();
-        (pm_qc_finish = hsc->async_qc_finish(dummy))
+    void do_new_consensus(int x, const std::vector<uint256_t> &cmds) {
+        auto blk = hsc->on_propose(cmds, get_parents(), bytearray_t());
+        pm_qc_manual.reject();
+        (pm_qc_manual = hsc->async_qc_finish(blk))
             .then([this, x]() {
+                HOTSTUFF_LOG_PROTO("Pacemaker: got QC for block %d", x);
 #ifdef HOTSTUFF_TWO_STEP
                 if (x >= 2) return;
 #else
                 if (x >= 3) return;
 #endif
-                HOTSTUFF_LOG_PROTO("Pacemaker: got QC for dummy block %d", x);
-                do_new_consensus(x + 1);
+                do_new_consensus(x + 1, std::vector<uint256_t>{});
             });
     }
 
     void on_exp_timeout(TimerEvent &) {
         if (proposer == hsc->get_id())
-            do_new_consensus(0);
+            do_new_consensus(0, std::vector<uint256_t>{});
         timer = TimerEvent(ec, [this](TimerEvent &){ rotate(); });
         timer.add(prop_delay);
     }
@@ -320,6 +321,7 @@ class PMRoundRobinProposer: virtual public PaceMaker {
         HOTSTUFF_LOG_PROTO("Pacemaker: rotate to %d", proposer);
         pm_qc_finish.reject();
         pm_wait_propose.reject();
+        pm_qc_manual.reject();
         // start timer
         timer = TimerEvent(ec, salticidae::generic_bind(&PMRoundRobinProposer::on_exp_timeout, this, _1));
         timer.add(exp_timeout);
@@ -331,6 +333,7 @@ class PMRoundRobinProposer: virtual public PaceMaker {
         HOTSTUFF_LOG_PROTO("Pacemaker: stop rotation at %d", proposer);
         pm_qc_finish.reject();
         pm_wait_propose.reject();
+        pm_qc_manual.reject();
         rotating = false;
         locked = false;
         last_proposed = hsc->get_genesis();
@@ -346,7 +349,7 @@ class PMRoundRobinProposer: virtual public PaceMaker {
                 std::vector<uint256_t> cmds;
                 for (auto &p: pending)
                     cmds.push_back(p.first);
-                hs->on_propose(cmds, get_parents());
+                do_new_consensus(0, cmds);
             });
         }
     }
