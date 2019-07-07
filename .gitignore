@@ -5,10 +5,8 @@ CMakeDoxyfile.in
 CMakeCache.txt
 cmake-build-debug/
 libsecp256k1-prefix/
-hotstuff-app
-hotstuff-client
-hotstuff-keygen
-hotstuff-tls-keygen
+/hotstuff-keygen
+/hotstuff-tls-keygen
 libhotstuff.a
 src/*.swo
 src/*.swp
