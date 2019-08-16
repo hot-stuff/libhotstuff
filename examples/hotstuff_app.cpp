@@ -22,7 +22,6 @@
 #include <random>
 #include <unistd.h>
 #include <signal.h>
-#include <event2/event.h>
 
 #include "salticidae/stream.h"
 #include "salticidae/util.h"

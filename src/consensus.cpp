@@ -229,7 +229,7 @@ void HotStuffCore::on_receive_vote(const Vote &vote) {
     if (qsize >= config.nmajority) return;
     if (!blk->voted.insert(vote.voter).second)
     {
-        LOG_WARN("duplicate vote from %d", vote.voter);
+        LOG_WARN("duplicate vote for %s from %d", get_hex10(vote.blk_hash).c_str(), vote.voter);
         return;
     }
     auto &qc = blk->self_qc;
