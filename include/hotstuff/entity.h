@@ -186,15 +186,9 @@ class Block {
 
     const uint256_t &get_hash() const { return hash; }
 
-    bool verify(const ReplicaConfig &config) const {
-        if (qc && !qc->verify(config)) return false;
-        return true;
-    }
+    bool verify(const HotStuffCore *hsc) const;
 
-    promise_t verify(const ReplicaConfig &config, VeriPool &vpool) const {
-        return (qc ? qc->verify(config, vpool) :
-        promise_t([](promise_t &pm) { pm.resolve(true); }));
-    }
+    promise_t verify(const HotStuffCore *hsc, VeriPool &vpool) const;
 
     int8_t get_decision() const { return decision; }
 

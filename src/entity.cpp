@@ -62,4 +62,16 @@ void Block::unserialize(DataStream &s, HotStuffCore *hsc) {
     this->hash = salticidae::get_hash(*this);
 }
 
+bool Block::verify(const HotStuffCore *hsc) const {
+    return qc && qc->verify(hsc->get_config());
+}
+
+promise_t Block::verify(const HotStuffCore *hsc, VeriPool &vpool) const {
+    if (!qc)
+        return promise_t([](promise_t &pm) { pm.resolve(false); });
+    if (qc->get_obj_hash() == hsc->get_genesis()->get_hash())
+        return promise_t([](promise_t &pm) { pm.resolve(true); });
+    return qc->verify(hsc->get_config(), vpool);
+}
+
 }
