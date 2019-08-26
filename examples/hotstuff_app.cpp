@@ -83,7 +83,7 @@ class HotStuffApp: public HotStuff {
     std::unordered_map<const uint256_t, promise_t> unconfirmed;
 
     using conn_t = ClientNetwork<opcode_t>::conn_t;
-    using resp_queue_t = salticidae::MPSCQueueEventDriven<Finality>;
+    using resp_queue_t = salticidae::MPSCQueueEventDriven<std::pair<Finality, NetAddr>>;
 
     /* for the dedicated thread sending responses to the clients */
     std::thread req_thread;
@@ -110,7 +110,6 @@ class HotStuffApp: public HotStuff {
 #ifndef HOTSTUFF_ENABLE_BENCHMARK
         HOTSTUFF_LOG_INFO("replicated %s", std::string(fin).c_str());
 #endif
-        resp_queue.enqueue(fin);
     }
 
 #ifdef HOTSTUFF_MSG_STAT
@@ -312,14 +311,13 @@ HotStuffApp::HotStuffApp(uint32_t blk_size,
     resp_tcall = new salticidae::ThreadCall(resp_ec);
     req_tcall = new salticidae::ThreadCall(req_ec);
     resp_queue.reg_handler(resp_ec, [this](resp_queue_t &q) {
-        Finality fin;
-        while (q.try_dequeue(fin))
+        std::pair<Finality, NetAddr> p;
+        while (q.try_dequeue(p))
         {
-            auto it = unconfirmed.find(fin.cmd_hash);
-            if (it != unconfirmed.end())
-            {
-                it->second.resolve(fin);
-                unconfirmed.erase(it);
+            try {
+                cn.send_msg(MsgRespCmd(std::move(p.first)), p.second);
+            } catch (std::exception &err) {
+                HOTSTUFF_LOG_WARN("unable to send to the client: %s", err.what());
             }
         }
         return false;
@@ -337,21 +335,7 @@ void HotStuffApp::client_request_cmd_handler(MsgReqCmd &&msg, const conn_t &conn
     const auto &cmd_hash = cmd->get_hash();
     HOTSTUFF_LOG_DEBUG("processing %s", std::string(*cmd).c_str());
     exec_command(cmd_hash, [this, addr](Finality fin) {
-        resp_queue.enqueue(fin);
-    });
-    /* the following function is executed on the dedicated thread for confirming commands */
-    resp_tcall->async_call([this, addr, cmd_hash](salticidae::ThreadCall::Handle &) {
-        auto it = unconfirmed.find(cmd_hash);
-        if (it == unconfirmed.end())
-            it = unconfirmed.insert(
-                std::make_pair(cmd_hash, promise_t([](promise_t &){}))).first;
-        it->second.then([this, addr](const Finality &fin) {
-            try {
-                cn.send_msg(MsgRespCmd(std::move(fin)), addr);
-            } catch (std::exception &err) {
-                HOTSTUFF_LOG_WARN("unable to send to the client: %s", err.what());
-            }
-        });
+        resp_queue.enqueue(std::make_pair(fin, addr));
     });
 }
 
