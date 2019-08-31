@@ -73,6 +73,7 @@ class PMHighTail: public virtual PaceMaker {
     
     void reg_hqc_update() {
         hsc->async_hqc_update().then([this](const block_t &hqc) {
+            hqc_tail = hqc;
             for (const auto &tail: hsc->get_tails())
                 if (check_ancestry(hqc, tail) && tail->get_height() > hqc_tail->get_height())
                     hqc_tail = tail;

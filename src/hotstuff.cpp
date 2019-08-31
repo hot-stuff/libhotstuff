@@ -184,7 +184,7 @@ promise_t HotStuffBase::async_deliver_blk(const uint256_t &blk_hash,
         for (const auto &phash: blk->get_parent_hashes())
             pms.push_back(async_deliver_blk(phash, replica_id));
         if (blk != get_genesis())
-            pms.push_back(blk->verify(get_config(), vpool));
+            pms.push_back(blk->verify(this, vpool));
         promise::all(pms).then([this, blk]() {
             on_deliver_blk(blk);
         });

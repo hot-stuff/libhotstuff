@@ -44,7 +44,7 @@ class HotStuffCore {
     uint32_t vheight;          /**< height of the block last voted for */
     /* === auxilliary variables === */
     privkey_bt priv_key;            /**< private key for signing votes */
-    std::set<block_t, BlockHeightCmp> tails;   /**< set of tail blocks */
+    std::set<block_t> tails;   /**< set of tail blocks */
     ReplicaConfig config;                   /**< replica configuration */
     /* === async event queues === */
     std::unordered_map<block_t, promise_t> qc_waiting;
@@ -158,11 +158,11 @@ class HotStuffCore {
     promise_t async_hqc_update();
 
     /* Other useful functions */
-    const block_t &get_genesis() { return b0; }
+    const block_t &get_genesis() const { return b0; }
     const block_t &get_hqc() { return hqc.first; }
-    const ReplicaConfig &get_config() { return config; }
+    const ReplicaConfig &get_config() const { return config; }
     ReplicaID get_id() const { return id; }
-    const std::set<block_t, BlockHeightCmp> get_tails() const { return tails; }
+    const std::set<block_t> get_tails() const { return tails; }
     operator std::string () const;
     void set_vote_disabled(bool f) { vote_disabled = f; }
 };
