@@ -5,6 +5,21 @@ libhotstuff is a general-purpose BFT state machine replication library with
 modularity and simplicity, suitable for building hybrid consensus
 cryptocurrencies.
 
+Paper
+=====
+
+This repo includes the prototype implementation evaluated in our *HotStuff: BFT
+Consensus in the Lens of Blockchain* paper. The consensus protocol is also used
+by Facebook in Libra_ project.
+
+Feel free to contact us if you'd like to reproduce the results in the paper, or
+tweak the code for your own project/product.
+
+- Full paper: https://arxiv.org/abs/1803.05069
+- PODC 2019 paper: https://dl.acm.org/citation.cfm?id=3331591
+
+.. _Libra: https://github.com/libra
+
 Features
 ========
 
