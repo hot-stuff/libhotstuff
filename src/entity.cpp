@@ -26,16 +26,11 @@ void Block::serialize(DataStream &s) const {
     s << htole((uint32_t)cmds.size());
     for (auto cmd: cmds)
         s << cmd;
-    if (qc)
-        s << (uint8_t)1 << *qc;
-    else
-        s << (uint8_t)0;
-    s << htole((uint32_t)extra.size()) << extra;
+    s << *qc << htole((uint32_t)extra.size()) << extra;
 }
 
 void Block::unserialize(DataStream &s, HotStuffCore *hsc) {
     uint32_t n;
-    uint8_t flag;
     s >> n;
     n = letoh(n);
     parent_hashes.resize(n);
@@ -48,8 +43,7 @@ void Block::unserialize(DataStream &s, HotStuffCore *hsc) {
         s >> cmd;
 //    for (auto &cmd: cmds)
 //        cmd = hsc->parse_cmd(s);
-    s >> flag;
-    qc = flag ? hsc->parse_quorum_cert(s) : nullptr;
+    qc = hsc->parse_quorum_cert(s);
     s >> n;
     n = letoh(n);
     if (n == 0)
@@ -63,12 +57,12 @@ void Block::unserialize(DataStream &s, HotStuffCore *hsc) {
 }
 
 bool Block::verify(const HotStuffCore *hsc) const {
-    return qc && qc->verify(hsc->get_config());
+    if (qc->get_obj_hash() == hsc->get_genesis()->get_hash())
+        return true;
+    return qc->verify(hsc->get_config());
 }
 
 promise_t Block::verify(const HotStuffCore *hsc, VeriPool &vpool) const {
-    if (!qc)
-        return promise_t([](promise_t &pm) { pm.resolve(false); });
     if (qc->get_obj_hash() == hsc->get_genesis()->get_hash())
         return promise_t([](promise_t &pm) { pm.resolve(true); });
     return qc->verify(hsc->get_config(), vpool);

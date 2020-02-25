@@ -21,6 +21,7 @@
 #include "salticidae/event.h"
 #include "salticidae/ref.h"
 #include "salticidae/netaddr.h"
+#include "salticidae/network.h"
 #include "salticidae/stream.h"
 #include "salticidae/type.h"
 #include "salticidae/util.h"
@@ -38,18 +39,15 @@ using salticidae::letoh;
 using salticidae::get_hex;
 using salticidae::from_hex;
 using salticidae::bytearray_t;
+using salticidae::get_hex10;
 using salticidae::get_hash;
 
 using salticidae::NetAddr;
+using salticidae::PeerId;
 using salticidae::TimerEvent;
 using salticidae::FdEvent;
 using salticidae::EventContext;
 using promise::promise_t;
-
-template<typename SerialType>
-inline std::string get_hex10(const SerialType &x) {
-    return get_hex(x).substr(0, 10);
-}
 
 class HotStuffError: public salticidae::SalticidaeError {
     public:

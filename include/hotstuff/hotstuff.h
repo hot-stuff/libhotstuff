@@ -89,7 +89,7 @@ class FetchContext: public promise_t {
     HotStuffBase *hs;
     MsgReqBlock fetch_msg;
     const uint256_t ent_hash;
-    std::unordered_set<NetAddr> replica_ids;
+    std::unordered_set<PeerId> replicas;
     inline void timeout_cb(TimerEvent &);
     public:
     FetchContext(const FetchContext &) = delete;
@@ -99,9 +99,9 @@ class FetchContext: public promise_t {
     FetchContext(const uint256_t &ent_hash, HotStuffBase *hs);
     ~FetchContext() {}
 
-    inline void send(const NetAddr &replica_id);
+    inline void send(const PeerId &replica);
     inline void reset_timeout();
-    inline void add_replica(const NetAddr &replica_id, bool fetch_now = true);
+    inline void add_replica(const PeerId &replica, bool fetch_now = true);
 };
 
 class BlockDeliveryContext: public promise_t {
@@ -142,7 +142,7 @@ class HotStuffBase: public HotStuffCore {
     EventContext ec;
     salticidae::ThreadCall tcall;
     VeriPool vpool;
-    std::vector<NetAddr> peers;
+    std::vector<PeerId> peers;
 
     private:
     /** whether libevent handle is owned by itself */
@@ -176,11 +176,11 @@ class HotStuffBase: public HotStuffCore {
     mutable double part_delivery_time;
     mutable double part_delivery_time_min;
     mutable double part_delivery_time_max;
-    mutable std::unordered_map<const NetAddr, uint32_t> part_fetched_replica;
+    mutable std::unordered_map<const PeerId, uint32_t> part_fetched_replica;
 
     void on_fetch_cmd(const command_t &cmd);
     void on_fetch_blk(const block_t &blk);
-    void on_deliver_blk(const block_t &blk);
+    bool on_deliver_blk(const block_t &blk);
 
     /** deliver consensus message: <propose> */
     inline void propose_handler(MsgPropose &&, const Net::conn_t &);
@@ -235,11 +235,11 @@ class HotStuffBase: public HotStuffCore {
 
     /* Helper functions */
     /** Returns a promise resolved (with command_t cmd) when Command is fetched. */
-    promise_t async_fetch_cmd(const uint256_t &cmd_hash, const NetAddr *replica_id, bool fetch_now = true);
+    promise_t async_fetch_cmd(const uint256_t &cmd_hash, const PeerId *replica, bool fetch_now = true);
     /** Returns a promise resolved (with block_t blk) when Block is fetched. */
-    promise_t async_fetch_blk(const uint256_t &blk_hash, const NetAddr *replica_id, bool fetch_now = true);
+    promise_t async_fetch_blk(const uint256_t &blk_hash, const PeerId *replica, bool fetch_now = true);
     /** Returns a promise resolved (with block_t blk) when Block is delivered (i.e. prefix is fetched). */
-    promise_t async_deliver_blk(const uint256_t &blk_hash,  const NetAddr &replica_id);
+    promise_t async_deliver_blk(const uint256_t &blk_hash,  const PeerId &replica);
 };
 
 /** HotStuff protocol (templated by cryptographic implementation). */
@@ -316,7 +316,7 @@ FetchContext<ent_type>::FetchContext(FetchContext && other):
         hs(other.hs),
         fetch_msg(std::move(other.fetch_msg)),
         ent_hash(other.ent_hash),
-        replica_ids(std::move(other.replica_ids)) {
+        replicas(std::move(other.replicas)) {
     other.timeout.del();
     timeout = TimerEvent(hs->ec,
             std::bind(&FetchContext::timeout_cb, this, _1));
@@ -326,16 +326,16 @@ FetchContext<ent_type>::FetchContext(FetchContext && other):
 template<>
 inline void FetchContext<ENT_TYPE_CMD>::timeout_cb(TimerEvent &) {
     HOTSTUFF_LOG_WARN("cmd fetching %.10s timeout", get_hex(ent_hash).c_str());
-    for (const auto &replica_id: replica_ids)
-        send(replica_id);
+    for (const auto &replica: replicas)
+        send(replica);
     reset_timeout();
 }
 
 template<>
 inline void FetchContext<ENT_TYPE_BLK>::timeout_cb(TimerEvent &) {
     HOTSTUFF_LOG_WARN("block fetching %.10s timeout", get_hex(ent_hash).c_str());
-    for (const auto &replica_id: replica_ids)
-        send(replica_id);
+    for (const auto &replica: replicas)
+        send(replica);
     reset_timeout();
 }
 
@@ -352,9 +352,9 @@ FetchContext<ent_type>::FetchContext(
 }
 
 template<EntityType ent_type>
-void FetchContext<ent_type>::send(const NetAddr &replica_id) {
-    hs->part_fetched_replica[replica_id]++;
-    hs->pn.send_msg(fetch_msg, replica_id);
+void FetchContext<ent_type>::send(const PeerId &replica) {
+    hs->part_fetched_replica[replica]++;
+    hs->pn.send_msg(fetch_msg, replica);
 }
 
 template<EntityType ent_type>
@@ -363,10 +363,10 @@ void FetchContext<ent_type>::reset_timeout() {
 }
 
 template<EntityType ent_type>
-void FetchContext<ent_type>::add_replica(const NetAddr &replica_id, bool fetch_now) {
-    if (replica_ids.empty() && fetch_now)
-        send(replica_id);
-    replica_ids.insert(replica_id);
+void FetchContext<ent_type>::add_replica(const PeerId &replica, bool fetch_now) {
+    if (replicas.empty() && fetch_now)
+        send(replica);
+    replicas.insert(replica);
 }
 
 }

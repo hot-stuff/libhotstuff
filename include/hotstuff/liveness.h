@@ -124,7 +124,7 @@ class PMHighTail: public virtual PaceMaker {
         //         if (!--nparents) break;
         //     }
         // }
-        return std::move(parents);
+        return parents;
     }
 };
 
@@ -182,7 +182,7 @@ class PMWaitQC: public virtual PaceMaker {
         promise_t pm;
         pending_beats.push(pm);
         schedule_next();
-        return std::move(pm);
+        return pm;
     }
 
     promise_t beat_resp(ReplicaID last_proposer) override {
@@ -393,7 +393,7 @@ class PMRoundRobinProposer: virtual public PaceMaker {
             promise_t pm;
             pending_beats.push(pm);
             proposer_schedule_next();
-            return std::move(pm);
+            return pm;
         }
         else
             return promise_t([proposer=proposer](promise_t &pm) {

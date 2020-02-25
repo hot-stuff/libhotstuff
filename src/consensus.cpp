@@ -53,7 +53,7 @@ block_t HotStuffCore::get_delivered_blk(const uint256_t &blk_hash) {
     block_t blk = storage->find_blk(blk_hash);
     if (blk == nullptr || !blk->delivered)
         throw std::runtime_error("block not delivered");
-    return std::move(blk);
+    return blk;
 }
 
 bool HotStuffCore::on_deliver_blk(const block_t &blk) {
@@ -279,10 +279,10 @@ void HotStuffCore::prune(uint32_t staleness) {
     }
 }
 
-void HotStuffCore::add_replica(ReplicaID rid, const NetAddr &addr,
+void HotStuffCore::add_replica(ReplicaID rid, const PeerId &peer_id,
                                 pubkey_bt &&pub_key) {
-    config.add_replica(rid, 
-            ReplicaInfo(rid, addr, std::move(pub_key)));
+    config.add_replica(rid,
+            ReplicaInfo(rid, peer_id, std::move(pub_key)));
     b0->voted.insert(rid);
 }
 
@@ -351,7 +351,7 @@ HotStuffCore::operator std::string () const {
       << "b_exec=" << get_hex10(b_exec->get_hash()) << " "
       << "vheight=" << std::to_string(vheight) << " "
       << "tails=" << std::to_string(tails.size()) << ">";
-    return std::move(s);
+    return s;
 }
 
 }

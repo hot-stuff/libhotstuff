@@ -142,7 +142,7 @@ class HotStuffCore {
     public:
     /** Add a replica to the current configuration. This should only be called
      * before running HotStuffCore protocol. */
-    void add_replica(ReplicaID rid, const NetAddr &addr, pubkey_bt &&pub_key);
+    void add_replica(ReplicaID rid, const PeerId &peer_id, pubkey_bt &&pub_key);
     /** Try to prune blocks lower than last committed height - staleness. */
     void prune(uint32_t staleness);
 
@@ -201,7 +201,7 @@ struct Proposal: public Serializable {
         s << "<proposal "
           << "rid=" << std::to_string(proposer) << " "
           << "blk=" << get_hex10(blk->get_hash()) << ">";
-        return std::move(s);
+        return s;
     }
 };
 
@@ -261,7 +261,7 @@ struct Vote: public Serializable {
         s << "<vote "
           << "rid=" << std::to_string(voter) << " "
           << "blk=" << get_hex10(blk_hash) << ">";
-        return std::move(s);
+        return s;
     }
 };
 
@@ -307,7 +307,7 @@ struct Finality: public Serializable {
           << "cmd_height=" << std::to_string(cmd_height) << " "
           << "cmd=" << get_hex10(cmd_hash) << " "
           << "blk=" << get_hex10(blk_hash) << ">";
-        return std::move(s);
+        return s;
     }
 };
 
