@@ -58,7 +58,16 @@ section may be incomplete and subject to changes.
     cd libhotstuff/
     git submodule update --init --recursive
 
-    # ensure openssl and libevent are installed on your machine
+    # ensure openssl and libevent are installed on your machine, more
+    # specifically, you need:
+    #
+    # CMake >= 3.9 (cmake)
+    # C++14 (g++)
+    # libuv >= 1.10.0 (libuv1-dev)
+    # openssl >= 1.1.0 (libssl-dev)
+    #
+    # on Ubuntu: sudo apt-get install libssl-dev libuv1-dev cmake make
+
     cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED=ON -DHOTSTUFF_PROTO_LOG=ON
     make
 
@@ -67,10 +76,12 @@ section may be incomplete and subject to changes.
 
 
     # Fault tolerance:
-    # Try to run run_demo.sh first and then run_demo_client.sh, then use Ctrl-C
-    # to terminate the proposing replica (e.g. replica 0). Leader rotation will
-    # be scheduled. Try to kill and run run_demo_client.sh again, new commands
-    # should still get through (be replicated) once the new leader becomes stable.
+    # Try to run the replicas as in run_demo.sh first and then run_demo_client.sh.
+    # Use Ctrl-C to terminate the proposing replica (e.g. replica 0). Leader
+    # rotation will be scheduled. Try to kill and run run_demo_client.sh again, new
+    # commands should still get through (be replicated) once the new leader becomes
+    # stable. Or try the following script:
+    # scripts/faulty_leader_demo.sh
 
 TODO
 ====
