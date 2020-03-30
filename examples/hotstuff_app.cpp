@@ -171,6 +171,7 @@ int main(int argc, char **argv) {
     auto opt_clinworker = Config::OptValInt::create(8);
     auto opt_cliburst = Config::OptValInt::create(1000);
     auto opt_notls = Config::OptValFlag::create(false);
+    auto opt_max_msg_size = Config::OptValInt::create(4 << 20);
 
     config.add_opt("block-size", opt_blk_size, Config::SET_VAL);
     config.add_opt("parent-limit", opt_parent_limit, Config::SET_VAL);
@@ -192,6 +193,7 @@ int main(int argc, char **argv) {
     config.add_opt("clinworker", opt_clinworker, Config::SET_VAL, 'M', "the number of threads for client network");
     config.add_opt("cliburst", opt_cliburst, Config::SET_VAL, 'B', "");
     config.add_opt("notls", opt_notls, Config::SWITCH_ON, 's', "disable TLS");
+    config.add_opt("max-msg-size", opt_max_msg_size, Config::SET_VAL, 'S', "the maximum message size");
     config.add_opt("help", opt_help, Config::SWITCH_ON, 'h', "show this help info");
 
     EventContext ec;
@@ -237,6 +239,7 @@ int main(int argc, char **argv) {
 
     HotStuffApp::Net::Config repnet_config;
     ClientNetwork<opcode_t>::Config clinet_config;
+    repnet_config.max_msg_size(opt_max_msg_size->get());
     if (!opt_tls_privkey->get().empty() && !opt_notls->get())
     {
         auto tls_priv_key = new salticidae::PKey(
