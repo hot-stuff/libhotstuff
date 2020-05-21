@@ -402,8 +402,8 @@ class PMRoundRobinProposer: virtual public PaceMaker {
     }
 
     promise_t beat_resp(ReplicaID last_proposer) override {
-        return promise_t([this, last_proposer](promise_t &pm) {
-            pm.resolve(last_proposer);
+        return promise_t([this](promise_t &pm) {
+            pm.resolve(proposer);
         });
     }
 };
