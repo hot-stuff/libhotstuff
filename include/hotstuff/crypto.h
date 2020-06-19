@@ -592,17 +592,18 @@ class QuorumCertSecp256k1: public QuorumCert {
 
         void sign(const bytearray_t &msg, const PrivKeyBLS &priv_key) {
             check_msg_length(msg);
-            std::cout << "sign: " << msg.data() << std::endl;
-            data = new bls::InsecureSignature(priv_key.data->SignInsecure(msg.data(), sizeof(&msg)));
+            uint8_t* arr = (unsigned char *)&*msg.begin();
+            data = new bls::InsecureSignature(priv_key.data->SignInsecure(arr, sizeof(arr)));
         }
 
         bool verify(const bytearray_t &msg, const PubKeyBLS &pub_key) const {
             check_msg_length(msg);
-            std::cout << "blah1" << std::endl;
-            std::cout << (unsigned char *)&*msg.begin() << std::endl;
-            bool res1 = data->Verify({(unsigned char *)&*msg.begin()}, {*(pub_key.data)});
-            std::cout << "blah2 " << res1 << std::endl;
-            return res1;
+            uint8_t* arr = (unsigned char *)&*msg.begin();
+
+            uint8_t hash[bls::BLS::MESSAGE_HASH_LEN];
+            bls::Util::Hash256(hash, arr, sizeof(arr));
+
+            return data->Verify({hash}, {*(pub_key.data)});
         }
     };
 
@@ -630,9 +631,7 @@ class QuorumCertSecp256k1: public QuorumCert {
         PartCertBLS(const PrivKeyBLS &priv_key, const uint256_t &obj_hash):
                 SigSecBLS(obj_hash, priv_key),
                 PartCert(),
-                obj_hash(obj_hash) {}
-
-        PartCertBLS(const PartCertBLS &obj)  : SigSecBLS(obj) { }
+                obj_hash(obj_hash) { }
 
         bool verify(const PubKey &pub_key) override {
             return SigSecBLS::verify(obj_hash,
