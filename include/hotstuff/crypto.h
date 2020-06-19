@@ -689,18 +689,15 @@ class QuorumCertSecp256k1: public QuorumCert {
         {
             std::vector<bls::InsecureSignature> sigShareOut;
             std::vector<size_t> players;
+            players.reserve(signatures.size());
 
             for(auto elem : signatures) {
-                players.push_back(elem.first);
+                players.push_back(elem.first + 1);
                 sigShareOut.push_back(*elem.second.data);
             }
-            std::cout << "Try combine?" << std::endl;
-            std::cout << players.size() << std::endl;
-            std::cout << sigShareOut.size() << std::endl;
-            uint8_t* d = obj_hash.to_bytes().data();
-
-            theSig = new SigSecBLS(bls::Threshold::AggregateUnitSigs(sigShareOut, d, sizeof(d), &players[0], 10));
-            std::cout << "those5?" << std::endl;
+            
+            uint8_t* arr = (unsigned char *)&*obj_hash.to_bytes().begin();
+            theSig = new SigSecBLS(bls::Threshold::AggregateUnitSigs(sigShareOut, arr, sizeof(arr), &players[0], 10));
         }
 
         bool verify(const ReplicaConfig &config) override;
