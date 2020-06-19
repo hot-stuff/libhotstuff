@@ -22,6 +22,13 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/salticidae/cmake
 add_subdirectory(salticidae)
 include_directories(salticidae/include)
 
+INCLUDE_DIRECTORIES(bls/src)
+LINK_DIRECTORIES(bls/build/src)
+
+LINK_DIRECTORIES(bls/build/contrib/relic/lib)
+INCLUDE_DIRECTORIES(bls/build/contrib/relic/include)
+INCLUDE_DIRECTORIES(bls/contrib/relic/include)
+
 find_package(OpenSSL REQUIRED)
 find_package(Threads REQUIRED)
 
@@ -91,11 +98,11 @@ endif()
 # build tools
 add_executable(hotstuff-keygen
     src/hotstuff_keygen.cpp)
-target_link_libraries(hotstuff-keygen hotstuff_static)
+target_link_libraries(hotstuff-keygen hotstuff_static blstmp relic_s)
 
 add_executable(hotstuff-tls-keygen
     src/hotstuff_tls_keygen.cpp)
-target_link_libraries(hotstuff-tls-keygen hotstuff_static)
+target_link_libraries(hotstuff-tls-keygen hotstuff_static blstmp relic_s)
 
 find_package(Doxygen)
 if (DOXYGEN_FOUND)

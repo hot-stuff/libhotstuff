@@ -309,6 +309,8 @@ class HotStuff: public HotStuffBase {
 using HotStuffNoSig = HotStuff<>;
 using HotStuffSecp256k1 = HotStuff<PrivKeySecp256k1, PubKeySecp256k1,
                                     PartCertSecp256k1, QuorumCertSecp256k1>;
+using HotStuffTH = HotStuff<PrivKeyBLS, PubKeyBLS,
+            PartCertBLS, QuorumCertBLS>;
 
 template<EntityType ent_type>
 FetchContext<ent_type>::FetchContext(FetchContext && other):
