@@ -28,3 +28,5 @@ core
 hotstuff-keygen_bls
 
 hotstuff.cbp
+
+log*
