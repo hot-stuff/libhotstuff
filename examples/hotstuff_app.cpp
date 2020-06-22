@@ -63,7 +63,7 @@ using hotstuff::MsgRespCmd;
 using hotstuff::get_hash;
 using hotstuff::promise_t;
 
-using HotStuff = hotstuff::HotStuffTH;
+using HotStuff = hotstuff::HotStuffSecp256k1 ;
 
 class HotStuffApp: public HotStuff {
     double stat_period;
