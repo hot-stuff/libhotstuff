@@ -1,49 +1,94 @@
-/**
- * Copyright 2018 VMware
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 
-#include <error.h>
 #include "salticidae/util.h"
-#include "hotstuff/crypto.h"
 
-using salticidae::Config;
-using hotstuff::privkey_bt;
-using hotstuff::pubkey_bt;
+#include <iostream>
+#include <bls.hpp>
+#include <random>
+#include <thread>
+#include <atomic>
+#include <cmath>
+#include <fstream>
+
+using namespace bls;
+using namespace std;
 
 int main(int argc, char **argv) {
-    Config config("hotstuff.conf");
-    privkey_bt priv_key;
-    auto opt_n = Config::OptValInt::create(1);
-    auto opt_algo = Config::OptValStr::create("secp256k1");
-    config.add_opt("num", opt_n, Config::SET_VAL);
-    config.add_opt("algo", opt_algo, Config::SET_VAL);
-    config.parse(argc, argv);
-    auto &algo = opt_algo->get();
-    if (algo == "secp256k1")
-        priv_key = new hotstuff::PrivKeySecp256k1();
-    else
-        error(1, 0, "algo not supported");
-    int n = opt_n->get();
-    if (n < 1)
-        error(1, 0, "n must be >0");
-    while (n--)
-    {
-        priv_key->from_rand();
-        pubkey_bt pub_key = priv_key->get_pubkey();
-        printf("pub:%s sec:%s\n", get_hex(*pub_key).c_str(),
-                            get_hex(*priv_key).c_str());
+
+    if (argc != 3) {
+        throw std::invalid_argument( "Expecting N, K as parameters" );
     }
+
+    char *endptr;
+    int N = atoi(argv[1]);
+    int K = atoi(argv[2]);
+
+    std::vector<std::vector<PublicKey>> commits;
+    std::vector<std::vector<PrivateKey>> frags;
+    for (size_t i = 0; i < N; ++i) {
+        commits.emplace_back(std::vector<PublicKey>());
+        frags.emplace_back(std::vector<PrivateKey>());
+        for (size_t j = 0; j < N; ++j) {
+            if (j < K) {
+                g1_t g;
+                commits[i].emplace_back(PublicKey::FromG1(&g));
+            }
+            bn_t b;
+            bn_new(b);
+            frags[i].emplace_back(PrivateKey::FromBN(b));
+        }
+    }
+
+    frags[0][0].GetPublicKey();
+
+    for (int i = 0; i < N; i++) {
+        Threshold::Create(commits[i], frags[i], K, N);
+    }
+
+    std::vector<PublicKey> keys;
+    keys.reserve(N);
+
+    std::ofstream myfile;
+
+    myfile.open (((string) "keys").append(std::to_string(N)).append(".cfg"));
+
+    for (int i = 0; i < N; i++) {
+        keys.push_back(commits[i][0]);
+    }
+    
+    PublicKey masterPubkey = PublicKey::AggregateInsecure(keys);
+
+    uint8_t pkBytes[bls::PublicKey::PUBLIC_KEY_SIZE];
+    masterPubkey.Serialize(pkBytes);
+    string hexkey = bls::Util::HexStr(pkBytes, bls::PublicKey::PUBLIC_KEY_SIZE);
+    myfile << "master: " << hexkey << "\n\n";
+
+    std::vector<std::vector<PrivateKey>> recvdFrags = {{}};
+    for (int i = 0; i < N; ++i) {
+        recvdFrags.emplace_back(std::vector<PrivateKey>());
+        for (int j = 0; j < N; ++j) {
+            recvdFrags[i].emplace_back(frags[j][i]);
+        }
+    }
+
+    vector<PrivateKey> privs;
+    privs.reserve(N);
+
+    for (int x = 0; x < N; x++) {
+        PrivateKey priv = PrivateKey::AggregateInsecure(recvdFrags[x]);
+        privs.push_back(priv);
+
+        uint8_t pkBytes[bls::PrivateKey::PRIVATE_KEY_SIZE];
+        priv.Serialize(pkBytes);
+        string hexkey = bls::Util::HexStr(pkBytes, bls::PrivateKey::PRIVATE_KEY_SIZE);
+        myfile << "priv" << x << ": " << hexkey << "\n";
+    }
+
+    for (int x = 0; x < N; x++) {
+        uint8_t pkBytes[bls::PublicKey::PUBLIC_KEY_SIZE];
+        privs[x].GetPublicKey().Serialize(pkBytes);
+        string hexkey = bls::Util::HexStr(pkBytes, bls::PublicKey::PUBLIC_KEY_SIZE);
+        myfile << "pub" << x << ": " << hexkey << "\n";
+    }
+
     return 0;
 }

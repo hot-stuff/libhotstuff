@@ -24,3 +24,7 @@ include/hotstuff/config.h
 core
 
 .idea/
+
+hotstuff-keygen_bls
+
+hotstuff.cbp
