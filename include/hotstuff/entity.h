@@ -65,7 +65,7 @@ class ReplicaConfig {
 
     PubKey* globalPub;
 
-    ReplicaConfig(): nreplicas(0), nmajority(0), globalPub(new PubKeyBLS(hotstuff::from_hex("8df60c260df14181197974051be16d9a8485c6c828b1d4f241da11bc60c7d068f0ad7e0c1d269fc7aa86f2b9204e1ca1"))) {}
+    ReplicaConfig(): nreplicas(0), nmajority(0) {}
 
     void add_replica(ReplicaID rid, const ReplicaInfo &info) {
         replica_map.insert(std::make_pair(rid, info));

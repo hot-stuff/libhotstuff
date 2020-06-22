@@ -64,13 +64,14 @@ namespace hotstuff {
 
     QuorumCertBLS::QuorumCertBLS(
             const ReplicaConfig &config, const uint256_t &obj_hash) :
-            QuorumCert(), obj_hash(obj_hash), rids(config.nreplicas) {
+            QuorumCert(), obj_hash(obj_hash), rids(config.nreplicas), t(config.nmajority){
         rids.clear();
     }
 
     bool QuorumCertBLS::verify(const ReplicaConfig &config) {
         if (theSig == nullptr) return false;
-
+        HOTSTUFF_LOG_DEBUG("checking cert(%d), obj_hash=%s",
+                           i, get_hex10(obj_hash).c_str());
         return theSig->verify(obj_hash, static_cast<const PubKeyBLS &>(*config.globalPub));
     }
 
@@ -78,9 +79,15 @@ namespace hotstuff {
         if (theSig == nullptr)
             return promise_t([](promise_t &pm) { pm.resolve(false); });
 
-        return promise_t(vpool.verify(new SigVeriTaskBLS(obj_hash,
-                                                            static_cast<const PubKeyBLS &>(*config.globalPub),
-                                                         *theSig))).then([](const promise::values_t &values) {
+        std::vector<promise_t> vpm;
+
+                HOTSTUFF_LOG_DEBUG("checking cert(%d), obj_hash=%s",
+                                   i, get_hex10(obj_hash).c_str());
+                vpm.push_back(vpool.verify(new SigVeriTaskBLS(obj_hash,
+                                                                 static_cast<const PubKeyBLS &>(*config.globalPub),
+                                                                 *theSig)));
+
+        return promise::all(vpm).then([](const promise::values_t &values) {
             for (const auto &v: values)
                 if (!promise::any_cast<bool>(v)) return false;
             return true;

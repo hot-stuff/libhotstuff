@@ -318,8 +318,6 @@ class SigSecp256k1: public Serializable {
     bool verify(const bytearray_t &msg, const PubKeySecp256k1 &pub_key,
                 const secp256k1_context_t &_ctx) const {
         check_msg_length(msg);
-        std::cout << "blah1" << std::endl;
-        std::cout << (unsigned char *)&*msg.begin() << std::endl;
         return secp256k1_ecdsa_verify(
                 _ctx->ctx, &data,
                 (unsigned char *)&*msg.begin(),
@@ -666,11 +664,11 @@ class QuorumCertSecp256k1: public QuorumCert {
         salticidae::Bits rids;
         std::unordered_map<ReplicaID, SigSecBLS> signatures;
         SigSecBLS* theSig = nullptr;
+        size_t t;
 
     public:
         QuorumCertBLS() = default;
         QuorumCertBLS(const ReplicaConfig &config, const uint256_t &obj_hash);
-
         ~QuorumCertBLS()
         {
             delete theSig;
@@ -695,9 +693,9 @@ class QuorumCertSecp256k1: public QuorumCert {
                 players.push_back(elem.first + 1);
                 sigShareOut.push_back(*elem.second.data);
             }
-            
+
             uint8_t* arr = (unsigned char *)&*obj_hash.to_bytes().begin();
-            theSig = new SigSecBLS(bls::Threshold::AggregateUnitSigs(sigShareOut, arr, sizeof(arr), &players[0], 10));
+            theSig = new SigSecBLS(bls::Threshold::AggregateUnitSigs(sigShareOut, arr, sizeof(arr), &players[0], t));
         }
 
         bool verify(const ReplicaConfig &config) override;
@@ -725,7 +723,8 @@ class QuorumCertSecp256k1: public QuorumCert {
             bool combined;
             s >> obj_hash >> rids >> combined;
             if (combined) {
-                s >> *theSig;
+                theSig = new SigSecBLS();
+                theSig->unserialize(s);
             }
             else {
                 for (size_t i = 0; i < rids.size(); i++)

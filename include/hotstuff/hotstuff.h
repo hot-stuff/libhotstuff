@@ -304,6 +304,10 @@ class HotStuff: public HotStuffBase {
                 ));
         HotStuffBase::start(std::move(reps), ec_loop);
     }
+
+    void set_master_pub(const bytearray_t &data) {
+        HotStuffBase::set_master_pub(new PubKeyType(data));
+    }
 };
 
 using HotStuffNoSig = HotStuff<>;

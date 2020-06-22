@@ -355,4 +355,8 @@ HotStuffCore::operator std::string () const {
     return s;
 }
 
+void HotStuffCore::set_master_pub(const pubkey_bt &masterPub) {
+    config.globalPub = masterPub->clone();
+}
+
 }
