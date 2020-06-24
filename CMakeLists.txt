@@ -23,11 +23,14 @@ add_subdirectory(salticidae)
 include_directories(salticidae/include)
 
 INCLUDE_DIRECTORIES(bls/src)
-LINK_DIRECTORIES(bls/build/src)
-
-LINK_DIRECTORIES(bls/build/contrib/relic/lib)
 INCLUDE_DIRECTORIES(bls/build/contrib/relic/include)
 INCLUDE_DIRECTORIES(bls/contrib/relic/include)
+
+add_library( blstmp STATIC IMPORTED )
+set_target_properties( blstmp PROPERTIES IMPORTED_LOCATION ${CMAKE_BINARY_DIR}/bls/build/src/libblstmp.a )
+
+add_library( relic_s STATIC IMPORTED )
+set_target_properties( relic_s PROPERTIES IMPORTED_LOCATION ${CMAKE_BINARY_DIR}/bls/build/contrib/relic/lib/librelic_s.a )
 
 find_package(OpenSSL REQUIRED)
 find_package(Threads REQUIRED)
