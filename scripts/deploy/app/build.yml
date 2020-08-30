@@ -1,0 +1,27 @@
+---
+# available vars:
+# last_state -- the content of state.json
+# nid -- host_idx (with 0 as default)
+# ngroup -- the group of nodes involved in the build
+# testbed -- the remote path of run_id
+
+- name: build hotstuff example binaries
+  block:
+    - file:
+        path: "{{ (hs_repo_dir, 'build') | path_join }}"
+        state: absent
+    - command: cmake -DCMAKE_BUID_TYPE=Release -DHOTSTUFF_PROTO_LOG=OFF -DCMAKE_CXX_FLAGS={{ hs_flags | default('') }}
+      args:
+        chdir: "{{ hs_repo_dir }}"
+      environment:
+        PATH: /sbin:/usr/sbin:/bin:/usr/bin:/usr/local/bin:/snap/bin
+    - command: make clean
+      args:
+        chdir: "{{ hs_repo_dir }}"
+      environment:
+        PATH: /sbin:/usr/sbin:/bin:/usr/bin:/usr/local/bin:/snap/bin
+    - command: make -j4
+      args:
+        chdir: "{{ hs_repo_dir }}"
+      environment:
+        PATH: /sbin:/usr/sbin:/bin:/usr/bin:/usr/local/bin:/snap/bin

@@ -1,0 +1,34 @@
+---
+# available vars:
+# workdir -- the local directory of run_id
+
+- name: setup libhotstuff example binaries
+  block:
+    - apt:
+        pkg:
+          - g++
+          - libssl-dev
+          - libuv1-dev
+          - cmake
+          - make
+          - dh-autoreconf
+        state:
+          latest
+      become: true
+      become_user: root
+    - file:
+        path: "{{ hs_repo_dir }}"
+        state: directory
+    - synchronize:
+        archive: true
+        delete: true
+        src: "{{ (workdir, hs_local_repo_dir, '') | path_join }}"
+        dest: "{{ hs_repo_dir }}"
+        mode: push
+        rsync_opts:
+          - "--exclude=.git"
+          - "--exclude=scripts/"
+          - "--exclude=CMakeCache.txt"
+          - "--exclude=CMakeFiles"
+          - "--exclude=libsecp256k1-prefix"
+          - "--delete-excluded"

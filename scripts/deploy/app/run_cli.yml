@@ -1,0 +1,36 @@
+---
+# available vars:
+# last_state -- the content of state.json
+# nid -- host_idx (with 0 as default)
+# ngroup -- the group of nodes involved in the build
+# testbed -- the remote path of run_id
+
+- vars:
+    conf_dir: "{{ (testbed,  hs_conf_dir) | path_join }}"
+    log_dir: "{{ (testbed, hs_log_dir) | path_join }}"
+  block:
+    - name: create testbed dirs
+      block:
+        - file:
+            path: "{{ conf_dir }}"
+            state: directory
+        - file:
+            path: "{{ log_dir }}"
+            state: directory
+    - name: copy the base conf file
+      copy:
+        src: "{{ (lookup('env','run_path'), hs_base_conf) | path_join }}"
+        dest: "{{ (conf_dir, 'hotstuff.conf') | path_join }}"
+        mode: '0644'
+    - name: start the hotstuff client
+      hotstuff_cli:
+        bin: "{{ client_bin | default('~/libhotstuff/examples/hotstuff_client') }}"
+        log_dir: "{{ log_dir }}"
+        cwd: "{{ conf_dir }}"
+        idx: "{{ client_idx | default(1) }}"
+        cid: "{{ cid }}"
+        iter: "{{ max_iter | default(100000) }}"
+        max_async: "{{ max_async }}"
+      environment:
+        PATH: /sbin:/usr/sbin:/bin:/usr/bin:/usr/local/bin:/snap/bin
+      register: spawn_results

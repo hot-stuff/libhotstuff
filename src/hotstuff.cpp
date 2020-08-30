@@ -257,9 +257,10 @@ void HotStuffBase::resp_blk_handler(MsgRespBlock &&msg, const Net::conn_t &) {
 bool HotStuffBase::conn_handler(const salticidae::ConnPool::conn_t &conn, bool connected) {
     if (connected)
     {
+        if (!pn.enable_tls) return true;
         auto cert = conn->get_peer_cert();
         //SALTICIDAE_LOG_INFO("%s", salticidae::get_hash(cert->get_der()).to_hex().c_str());
-        return (!cert) || valid_tls_certs.count(salticidae::get_hash(cert->get_der()));
+        return valid_tls_certs.count(salticidae::get_hash(cert->get_der()));
     }
     return true;
 }
@@ -359,6 +360,13 @@ HotStuffBase::HotStuffBase(uint32_t blk_size,
     pn.reg_handler(salticidae::generic_bind(&HotStuffBase::req_blk_handler, this, _1, _2));
     pn.reg_handler(salticidae::generic_bind(&HotStuffBase::resp_blk_handler, this, _1, _2));
     pn.reg_conn_handler(salticidae::generic_bind(&HotStuffBase::conn_handler, this, _1, _2));
+    pn.reg_error_handler([](const std::exception_ptr _err, bool fatal, int32_t async_id) {
+        try {
+            std::rethrow_exception(_err);
+        } catch (const std::exception &err) {
+            HOTSTUFF_LOG_WARN("network async error: %s\n", err.what());
+        }
+    });
     pn.start();
     pn.listen(listen_addr);
 }
@@ -408,7 +416,7 @@ void HotStuffBase::start(
         auto &addr = std::get<0>(replicas[i]);
         auto cert_hash = std::move(std::get<2>(replicas[i]));
         valid_tls_certs.insert(cert_hash);
-        salticidae::PeerId peer{cert_hash};
+        auto peer = pn.enable_tls ? salticidae::PeerId(cert_hash) : salticidae::PeerId(addr);
         HotStuffCore::add_replica(i, peer, std::move(std::get<1>(replicas[i])));
         if (addr != listen_addr)
         {

@@ -1,0 +1,24 @@
+---
+## basic config
+
+ansible_connection: ssh
+ansible_user: ubuntu
+# change to your aws ec2 key file here
+ansible_ssh_private_key_file: ~/.ssh/ted-aws-key2.pem
+# remote directory that keeps the work directory for the running app
+testbed_prefix: "/home/ubuntu/testbed"
+
+## app specific config
+
+# process name that is used by killall in reset
+bin_name: hotstuff-app
+# binary path (remote)
+replica_bin: "/home/ubuntu/libhotstuff/examples/hotstuff-app"
+client_bin: "/home/ubuntu/libhotstuff/examples/hotstuff-client"
+# remote repo path
+hs_repo_dir: "/home/ubuntu/libhotstuff"
+# local source code path (that will be copied to the remote)
+hs_local_repo_dir: "../../"
+hs_conf_dir: "conf"
+hs_log_dir: "log"
+hs_base_conf: "./hotstuff.gen.conf"

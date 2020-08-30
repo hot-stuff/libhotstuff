@@ -1,0 +1,40 @@
+---
+# available vars:
+# last_state -- the content of state.json
+# nid -- host_idx (with 0 as default)
+# ngroup -- the group of nodes involved in the build
+# testbed -- the remote path of run_id
+
+- vars:
+    conf_dir: "{{ (testbed, hs_conf_dir) | path_join }}"
+    log_dir: "{{ (testbed, hs_log_dir) | path_join }}"
+  block:
+    - name: create testbed dirs
+      block:
+        - file:
+            path: "{{ conf_dir }}"
+            state: directory
+        - file:
+            path: "{{ log_dir }}"
+            state: directory
+    - name: copy the base conf file
+      copy:
+        src: "{{ (lookup('env','run_path'), hs_base_conf) | path_join }}"
+        dest: "{{ (conf_dir, 'hotstuff.conf') | path_join }}"
+        mode: '0644'
+    - name: copy per node conf files
+      copy:
+        src: "{{ (lookup('env','run_path'), extra_conf) | path_join }}"
+        dest: "{{ (conf_dir, (extra_conf | basename)) | path_join }}"
+        mode: '0644'
+      when: extra_conf | default('') | length > 0
+    - name: start the hotstuff replica
+      hotstuff_app:
+        bin: "{{ replica_bin | default('~/libhotstuff/examples/hotstuff_app') }}"
+        log_dir: "{{ log_dir }}"
+        cwd: "{{ conf_dir }}"
+        conf: "{{ extra_conf | basename }}"
+        tls: false
+      environment:
+        PATH: /sbin:/usr/sbin:/bin:/usr/bin:/usr/local/bin:/snap/bin
+      register: spawn_results

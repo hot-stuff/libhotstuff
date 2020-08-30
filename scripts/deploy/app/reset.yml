@@ -1,0 +1,21 @@
+---
+# available vars:
+# last_state -- the content of state.json
+# nid -- host_idx (with 0 as default)
+# ngroup -- the group of nodes involved in the build
+# testbed -- the remote path of run_id
+
+- name: reset hotstuff
+  vars:
+    log_dir: "{{ (testbed, hs_log_dir) | path_join }}"
+  block:
+    - name: remove confs
+      file:
+        path: "{{ conf_dir }}"
+        state: absent
+      when: "hs_no_reset_conf is not defined or (hs_no_reset_conf == False)"
+    - name: remove old logs
+      file:
+        path: "{{ log_dir }}"
+        state: absent
+      when: "hs_no_reset_log is not defined or (hs_no_reset_log == False)"

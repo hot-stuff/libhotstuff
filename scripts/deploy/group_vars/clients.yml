@@ -1,0 +1,4 @@
+---
+bin_name: "hotstuff-client"
+max_iter: 100000
+max_async: 175
