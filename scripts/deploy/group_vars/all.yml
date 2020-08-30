@@ -1,15 +1,22 @@
 ---
 ## basic config
 
+# NOTE: change to your aws ec2 key file here
+ansible_ssh_private_key_file: ~/.ssh/ted-aws-key2.pem
+
+# the rest of config works for Ubuntu 18.04 image on Amazon EC2
+
 ansible_connection: ssh
 ansible_user: ubuntu
-# change to your aws ec2 key file here
-ansible_ssh_private_key_file: ~/.ssh/ted-aws-key2.pem
 # remote directory that keeps the work directory for the running app
 testbed_prefix: "/home/ubuntu/testbed"
+# must use Python 3
+ansible_python_interpreter: /usr/bin/python3
 
-## app specific config
+## build config
+hs_flags: "-g -DHOTSTUFF_ENABLE_BENCHMARK"
 
+## app config
 # process name that is used by killall in reset
 bin_name: hotstuff-app
 # binary path (remote)
@@ -22,3 +29,5 @@ hs_local_repo_dir: "../../"
 hs_conf_dir: "conf"
 hs_log_dir: "log"
 hs_base_conf: "./hotstuff.gen.conf"
+# enable/disable TLS encrpytion for inter-replica communication
+hs_tls: false

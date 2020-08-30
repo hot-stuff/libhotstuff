@@ -31,4 +31,6 @@ if __name__ == "__main__":
 
     print("\n[clients]")
     for (i, ip) in enumerate(clients):
-        print("client{} ansible_host={} cid={}".format(i, ip, i))
+        host_idx = host_idx_count.setdefault(pub_ip, 0)
+        host_idx_count[pub_ip] += 1
+        print("client{} ansible_host={} host_idx={} cid={}".format(i, ip, host_idx, i))

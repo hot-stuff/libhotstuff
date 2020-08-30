@@ -1,4 +1,6 @@
 ---
 bin_name: "hotstuff-client"
-max_iter: 100000
+# total number of commands
+max_iter: 200000
+# number of concurrently outstanding requests (commands)
 max_async: 175

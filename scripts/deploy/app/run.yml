@@ -34,7 +34,7 @@
         log_dir: "{{ log_dir }}"
         cwd: "{{ conf_dir }}"
         conf: "{{ extra_conf | basename }}"
-        tls: false
+        tls: "{{ hs_tls | default(false) }}"
       environment:
         PATH: /sbin:/usr/sbin:/bin:/usr/bin:/usr/local/bin:/snap/bin
       register: spawn_results
