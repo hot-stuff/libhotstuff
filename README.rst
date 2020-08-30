@@ -83,6 +83,11 @@ section may be incomplete and subject to changes.
     # stable. Or try the following script:
     # scripts/faulty_leader_demo.sh
 
+Try to Reproduce Our Basic Results
+==================================
+
+See here_.
+
 TODO
 ====
 
@@ -90,3 +95,5 @@ TODO
 - Branch pruning & swapping (the current implementation stores the entire chain in memory)
 - Limit the async events (improve robustness)
 - Persistent protocol state (recovery?)
+
+.. _here: https://github.com/hot-stuff/libhotstuff/tree/master/scripts/deploy
