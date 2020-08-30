@@ -7,8 +7,8 @@ Step 1 - Environment and Dependencies
 Local Environment
 -----------------
 
-- We assume you have the latest ansible_ installed on your work computer (could
-  be your laptop/home computer).
+- We assume you have the latest Ansible_ installed on your work computer (a
+  work computer is your laptop/home computer).
 - On your work computer, you have cloned the latest ``libhotstuff`` repo and
    updated all submodules (if not sure, run ``git submodules update --init
    --recursive``). Right now, you should be at ``/scripts/deploy`` directory in
@@ -77,3 +77,6 @@ Other Notes
   (gracefully exit and all results are available) or ``reset`` (simply kill all
   processes) any historical runs to start fresh.
 - To check the whether processes are still alive: ``./run.sh check myrun1``.
+
+
+.. _Ansible: https://docs.ansible.com/ansible/latest/installation_guide/intro_installation.html
