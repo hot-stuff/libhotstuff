@@ -10,9 +10,12 @@ Local Environment
 - We assume you have the latest Ansible_ installed on your work computer (a
   work computer is your laptop/home computer).
 - On your work computer, you have cloned the latest ``libhotstuff`` repo and
-   updated all submodules (if not sure, run ``git submodules update --init
-   --recursive``). Right now, you should be at ``/scripts/deploy`` directory in
-   your shell (``cd <path-to-your-libhotstuff-repo/scripts/deploy``).
+  updated all submodules (if not sure, run ``git submodule update --init
+  --recursive``). Finally, you have already built the repo so binaries
+  ``hotstuff-keygen`` and ``hotstuff-tls-keygen`` are available in the root
+  directory of the repo.
+- Right now, you should be at ``/scripts/deploy`` directory in your shell (``cd
+  <path-to-your-libhotstuff-repo>/scripts/deploy``).
 
 Remote Environment
 ------------------
@@ -29,8 +32,8 @@ Remote Environment
     be changed).
   - Each client machine should be able to talk to all replica machines via TCP
     ranging from 20000.
-
-  - NOTE: In our paper, we used ``c5.4xlarge`` to be match the config of our baselines.
+  - All machines should be accessible from your work computer given an ssh private key.
+  - NOTE: In our paper, we used ``c5.4xlarge`` to match the configuration of our baselines.
 
 Step 2 - Generate the Deployment Setup
 ======================================
@@ -60,8 +63,17 @@ Step 3 - Run the Experiment
 - (wait for a while until all replica processes settle down, for good network like EC2, 10 seconds should be more than enough)
 - (for replicas) Create a new experiment run and start all client processes by ``./run_cli.sh new myrun1_cli``.
 - (wait until all commands are submitted, or you simply would like to end the experiment)
-- To collect the results, run ``./run_cli.sh stop myrun1_cli`` and then ``./run_cli.sh fetch myrun1_cli``.
+- To collect the results, run ``./run_cli.sh stop myrun1_cli`` followed by ``./run_cli.sh fetch myrun1_cli``.
 - To analyze the results, run ``cat myrun1_cli/remote/*/log/stderr | python ../thr_hist.py``.
+
+  - With all default settings on ``c5.4xlarge``, I got the following results:
+
+    ::
+
+        [349669, 367520, 371855, 370391, 366159, 367565, 365957, 322690]
+        lat = 6.955ms # mean end-to-end latency
+        lat = 6.970ms # after removing outliers
+
 - Finally, stop replicas: ``./run.sh stop myrun1``.
 
 Other Notes
