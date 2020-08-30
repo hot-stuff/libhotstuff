@@ -5,7 +5,7 @@ Step 1 - Environment and Dependencies
 -------------------------------------
 
 Local Environment
------------------
++++++++++++++++++
 
 - We assume you have the latest Ansible_ installed on your work computer (a
   work computer is your laptop/home computer).
@@ -18,7 +18,7 @@ Local Environment
   <path-to-your-libhotstuff-repo>/scripts/deploy``).
 
 Remote Environment
-------------------
+++++++++++++++++++
 
 - In this example, we use a typical Linux image, Ubuntu 18.04, on Amazon EC2.
   But any machine with Ubuntu 18.04 installed may work, in general.
@@ -36,7 +36,7 @@ Remote Environment
   - NOTE: In our paper, we used ``c5.4xlarge`` to match the configuration of our baselines.
 
 Step 2 - Generate the Deployment Setup
-======================================
+--------------------------------------
 
 - Edit both ``replicas.txt`` and ``client.txt``:
 
@@ -55,7 +55,7 @@ Step 2 - Generate the Deployment Setup
 - Build ``libhotstuff`` on all remote machines by ``./run.sh setup``.
 
 Step 3 - Run the Experiment
-===========================
+---------------------------
 
 - (optional) Change the parameters in ``hotstuff.gen.conf`` to your liking.
 - (optional) Change the parameters in ``group_vars/clients.yml`` to your liking.
@@ -77,7 +77,7 @@ Step 3 - Run the Experiment
 - Finally, stop replicas: ``./run.sh stop myrun1``.
 
 Other Notes
-===========
+-----------
 
 - Each ``./run.sh new`` (same for ``./run_cli.sh``) will create a folder that
   contains everything (chosen parameters, raw results) for the run. A good
