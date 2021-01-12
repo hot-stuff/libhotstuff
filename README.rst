@@ -88,12 +88,21 @@ Try to Reproduce Our Basic Results
 
 See here_.
 
-TODO
-====
+TODO (When I get some free time...)
+===================================
 
-- Add a PoW-based Pacemaker
+- Rewrite this minimal code base in Rust: this time, with all the experience,
+  without C++ template kung-fu, I plan to have a ready-to-use, blackbox-like
+  libhotstuff implementation as a full library with better encapsulation and
+  interface. The new goal would be *any* engineer without knowledge of BFT
+  should be able to use it for his/her own application, without changing the
+  library code.  Ping me if you like this re-writing idea or you'd like to
+  be part of it.
+
+- Limit the async event callback depth (otherwise in the demo a fresh replica
+  could overflow its callback stack when trying to catch up)
+- Add a PoW-based Pacemaker example
 - Branch pruning & swapping (the current implementation stores the entire chain in memory)
-- Limit the async events (improve robustness)
 - Persistent protocol state (recovery?)
 
 .. _here: https://github.com/hot-stuff/libhotstuff/tree/master/scripts/deploy
