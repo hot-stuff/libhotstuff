@@ -206,6 +206,11 @@ void HotStuffBase::propose_handler(MsgPropose &&msg, const Net::conn_t &conn) {
     auto &prop = msg.proposal;
     block_t blk = prop.blk;
     if (!blk) return;
+    if (peer != get_config().get_peer_id(prop.proposer))
+    {
+        LOG_WARN("invalid proposal from %d", prop.proposer);
+        return;
+    }
     promise::all(std::vector<promise_t>{
         async_deliver_blk(blk->get_hash(), peer)
     }).then([this, prop = std::move(prop)]() {
@@ -383,8 +388,8 @@ void HotStuffBase::do_vote(ReplicaID last_proposer, const Vote &vote) {
             .then([this, vote](ReplicaID proposer) {
         if (proposer == get_id())
         {
-            throw HotStuffError("unreachable line");
-            //on_receive_vote(vote);
+            //throw HotStuffError("unreachable line");
+            on_receive_vote(vote);
         }
         else
             pn.send_msg(MsgVote(vote), get_config().get_peer_id(proposer));

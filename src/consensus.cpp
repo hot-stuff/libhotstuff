@@ -171,13 +171,10 @@ block_t HotStuffCore::on_propose(const std::vector<uint256_t> &cmds,
     update(bnew);
     Proposal prop(id, bnew, nullptr);
     LOG_PROTO("propose %s", std::string(*bnew).c_str());
-    /* self-vote */
     if (bnew->height <= vheight)
         throw std::runtime_error("new block should be higher than vheight");
-    vheight = bnew->height;
-    on_receive_vote(
-        Vote(id, bnew_hash,
-            create_part_cert(*priv_key, bnew_hash), this));
+    /* self-receive the proposal (no need to send it through the network) */
+    on_receive_proposal(prop);
     on_propose_(prop);
     /* boradcast to other replicas */
     do_broadcast_proposal(prop);
@@ -186,9 +183,13 @@ block_t HotStuffCore::on_propose(const std::vector<uint256_t> &cmds,
 
 void HotStuffCore::on_receive_proposal(const Proposal &prop) {
     LOG_PROTO("got %s", std::string(prop).c_str());
+    bool self_prop = prop.proposer == get_id();
     block_t bnew = prop.blk;
-    sanity_check_delivered(bnew);
-    update(bnew);
+    if (!self_prop)
+    {
+        sanity_check_delivered(bnew);
+        update(bnew);
+    }
     bool opinion = false;
     if (bnew->height > vheight)
     {
@@ -211,7 +212,7 @@ void HotStuffCore::on_receive_proposal(const Proposal &prop) {
         }
     }
     LOG_PROTO("now state: %s", std::string(*this).c_str());
-    if (bnew->qc_ref)
+    if (!self_prop && bnew->qc_ref)
         on_qc_finish(bnew->qc_ref);
     on_receive_proposal_(prop);
     if (opinion && !vote_disabled)
