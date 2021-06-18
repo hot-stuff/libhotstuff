@@ -304,11 +304,17 @@ class HotStuff: public HotStuffBase {
                 ));
         HotStuffBase::start(std::move(reps), ec_loop);
     }
+
+    void set_master_pub(const bytearray_t &data) {
+        HotStuffBase::set_master_pub(new PubKeyType(data));
+    }
 };
 
 using HotStuffNoSig = HotStuff<>;
 using HotStuffSecp256k1 = HotStuff<PrivKeySecp256k1, PubKeySecp256k1,
                                     PartCertSecp256k1, QuorumCertSecp256k1>;
+using HotStuffTH = HotStuff<PrivKeyBLS, PubKeyBLS,
+            PartCertBLS, QuorumCertBLS>;
 
 template<EntityType ent_type>
 FetchContext<ent_type>::FetchContext(FetchContext && other):

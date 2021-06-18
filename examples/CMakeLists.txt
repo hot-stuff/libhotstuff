@@ -18,8 +18,15 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+INCLUDE_DIRECTORIES(bls/src)
+LINK_DIRECTORIES(bls/build/src)
+
+LINK_DIRECTORIES(bls/build/contrib/relic/lib)
+INCLUDE_DIRECTORIES(bls/build/contrib/relic/include)
+INCLUDE_DIRECTORIES(bls/contrib/relic/include)
+
 add_executable(hotstuff-app hotstuff_app.cpp)
-target_link_libraries(hotstuff-app hotstuff_static)
+target_link_libraries(hotstuff-app hotstuff_static blstmp relic_s)
 
 add_executable(hotstuff-client hotstuff_client.cpp)
-target_link_libraries(hotstuff-client hotstuff_static)
+target_link_libraries(hotstuff-client hotstuff_static blstmp relic_s)
