@@ -8,15 +8,30 @@ cryptocurrencies.
 Paper
 =====
 
-This repo includes the prototype implementation evaluated in our *HotStuff: BFT
-Consensus in the Lens of Blockchain* paper. The consensus protocol is also used
-by Facebook in Libra_ project.
+This repository includes the prototype implementation evaluated in our
+*HotStuff: BFT Consensus in the Lens of Blockchain* paper. The consensus
+protocol is also used by Facebook in Libra_ (now rebranded to "Diem") project.
 
 Feel free to contact us if you'd like to reproduce the results in the paper, or
 tweak the code for your own project/product.
 
 - Full paper: https://arxiv.org/abs/1803.05069
 - PODC 2019 paper: https://dl.acm.org/citation.cfm?id=3331591
+
+Heads Up
+========
+
+Although we don't know why, many developers seem to be stuck with those
+intermediate algorithms in the paper (e.g. Basic HotStuff) that are only for
+theory/research purpose. As already noted in the paper, we recommend the last
+algorithm ("Event-Driven HotStuff") as it is simple, elegant (there is no
+"view" at all in the core protocol and only one generic type of QCs) and very
+close to an actual implementation. It is also the original algorithm we came up
+with, before adding in Basic/Chained HotStuff that may help some researchers
+understand its theoretical relation to PBFT, etc.
+
+TL;DR: read the spec (and the proof) of the algorithm in "Implementation"
+section, if you're only curious about using HotStuff in your system/work.
 
 .. _Libra: https://github.com/libra
 
