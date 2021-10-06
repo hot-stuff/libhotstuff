@@ -63,6 +63,8 @@ class ReplicaConfig {
     size_t nreplicas;
     size_t nmajority;
 
+    PubKey* globalPub;
+
     ReplicaConfig(): nreplicas(0), nmajority(0) {}
 
     void add_replica(ReplicaID rid, const ReplicaInfo &info) {

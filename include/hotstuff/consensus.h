@@ -82,6 +82,9 @@ class HotStuffCore {
      * functions. */
     void on_init(uint32_t nfaulty);
 
+    /** Call to initialize the master public key.. */
+    void set_master_pub(const pubkey_bt &masterPub);
+
     /* TODO: better name for "delivery" ? */
     /** Call to inform the state machine that a block is ready to be handled.
      * A block is only delivered if itself is fetched, the block for the

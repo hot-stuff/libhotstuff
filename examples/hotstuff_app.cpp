@@ -63,7 +63,7 @@ using hotstuff::MsgRespCmd;
 using hotstuff::get_hash;
 using hotstuff::promise_t;
 
-using HotStuff = hotstuff::HotStuffSecp256k1;
+using HotStuff = hotstuff::HotStuffSecp256k1 ;
 
 class HotStuffApp: public HotStuff {
     double stat_period;
@@ -132,6 +132,7 @@ class HotStuffApp: public HotStuff {
                 const ClientNetwork<opcode_t>::Config &clinet_config);
 
     void start(const std::vector<std::tuple<NetAddr, bytearray_t, bytearray_t>> &reps);
+    void set_master_pub(const std::string &master);
     void stop();
 };
 
@@ -173,6 +174,7 @@ int main(int argc, char **argv) {
     auto opt_notls = Config::OptValFlag::create(false);
     auto opt_max_rep_msg = Config::OptValInt::create(4 << 20); // 4M by default
     auto opt_max_cli_msg = Config::OptValInt::create(65536); // 64K by default
+    auto opt_master_pub = Config::OptValStr::create("");
 
     config.add_opt("block-size", opt_blk_size, Config::SET_VAL);
     config.add_opt("parent-limit", opt_parent_limit, Config::SET_VAL);
@@ -197,6 +199,7 @@ int main(int argc, char **argv) {
     config.add_opt("max-rep-msg", opt_max_rep_msg, Config::SET_VAL, 'S', "the maximum replica message size");
     config.add_opt("max-cli-msg", opt_max_cli_msg, Config::SET_VAL, 'S', "the maximum client message size");
     config.add_opt("help", opt_help, Config::SWITCH_ON, 'h', "show this help info");
+    config.add_opt("master-pub", opt_master_pub, Config::SET_VAL, 'p', "master public key for BLS");
 
     EventContext ec;
     config.parse(argc, argv);
@@ -283,6 +286,11 @@ int main(int argc, char **argv) {
             hotstuff::from_hex(std::get<1>(r)),
             hotstuff::from_hex(std::get<2>(r))));
     }
+
+    if (!opt_master_pub->get().empty()) {
+        papp->set_master_pub(opt_master_pub->get());
+    }
+
     auto shutdown = [&](int) { papp->stop(); };
     salticidae::SigEvent ev_sigint(ec, shutdown);
     salticidae::SigEvent ev_sigterm(ec, shutdown);
@@ -290,6 +298,7 @@ int main(int argc, char **argv) {
     ev_sigterm.add(SIGTERM);
 
     papp->start(reps);
+
     elapsed.stop(true);
     return 0;
 }
@@ -411,4 +420,8 @@ void HotStuffApp::print_stat() const {
     }
     HOTSTUFF_LOG_INFO("--- end client msg. ---");
 #endif
+}
+
+void HotStuffApp::set_master_pub(const std::string& masterPub) {
+    HotStuff::set_master_pub(hotstuff::from_hex(masterPub));
 }

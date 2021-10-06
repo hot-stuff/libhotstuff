@@ -23,6 +23,7 @@
 #include "salticidae/crypto.h"
 #include "hotstuff/type.h"
 #include "hotstuff/task.h"
+#include <bls.hpp>
 
 namespace hotstuff {
 
@@ -141,7 +142,6 @@ class QuorumCertDummy: public QuorumCert {
     const uint256_t &get_obj_hash() const override { return obj_hash; }
 };
 
-
 class Secp256k1Context {
     secp256k1_context *ctx;
     friend class PubKeySecp256k1;
@@ -180,7 +180,7 @@ class PubKeySecp256k1: public PubKey {
     PubKeySecp256k1(const secp256k1_context_t &ctx =
                             secp256k1_default_sign_ctx):
         PubKey(), ctx(ctx) {}
-    
+
     PubKeySecp256k1(const bytearray_t &raw_bytes,
                     const secp256k1_context_t &ctx =
                             secp256k1_default_sign_ctx):
@@ -424,6 +424,314 @@ class QuorumCertSecp256k1: public QuorumCert {
             if (rids.get(i)) s >> sigs[i];
     }
 };
+
+    class PrivKeyBLS;
+    class PubKeyBLS: public PubKey {
+        static const auto _olen = bls::PublicKey::PUBLIC_KEY_SIZE;
+        friend class SigSecBLS;
+
+        bls::PublicKey* data = nullptr;
+
+    public:
+        PubKeyBLS() :
+                PubKey() {}
+
+        PubKeyBLS(const bytearray_t &raw_bytes) :
+                PubKeyBLS() {
+            data = new bls::PublicKey(bls::PublicKey::FromBytes(&raw_bytes[0]));
+        }
+
+        PubKeyBLS(const PubKeyBLS &obj) {
+            data = new bls::PublicKey(*(obj.data));
+        }
+
+        ~PubKeyBLS() override {
+            delete data;
+            data = nullptr;
+        }
+
+        inline PubKeyBLS(const PrivKeyBLS &priv_key);
+
+        void serialize(DataStream &s) const override {
+            static uint8_t output[_olen];
+            data->Serialize(output);
+            s.put_data(output, output + _olen);
+        }
+
+        void unserialize(DataStream &s) override {
+            static const auto _exc = std::invalid_argument("ill-formed public key");
+
+            try {
+                data = new bls::PublicKey(bls::PublicKey::FromBytes(s.get_data_inplace(_olen)));
+            } catch (std::ios_base::failure &) {
+                throw _exc;
+            }
+        }
+
+        PubKeyBLS *clone() override {
+            return new PubKeyBLS(*this);
+        }
+    };
+
+    class PrivKeyBLS: public PrivKey {
+        static const auto nbytes = bls::PrivateKey::PRIVATE_KEY_SIZE;;
+        friend class SigSecBLS;
+
+    public:
+        bls::PrivateKey* data = nullptr;
+
+        PrivKeyBLS():
+                PrivKey() {}
+
+        PrivKeyBLS(const bytearray_t &raw_bytes):
+                PrivKeyBLS()
+                {
+                    static const auto _exc = std::invalid_argument("ill-formed public key");
+                    try {
+                        data = new bls::PrivateKey(bls::PrivateKey::FromBytes(&raw_bytes[0]));
+                    } catch (std::ios_base::failure &) {
+                        throw _exc;
+                    }
+                }
+
+        ~PrivKeyBLS()
+        {
+            delete data;
+            data = nullptr;
+        }
+
+        void serialize(DataStream &s) const override {
+            static uint8_t output[nbytes];
+            data->Serialize(output);
+            s.put_data(output, output + nbytes);
+        }
+
+        void unserialize(DataStream &s) override {
+            static const auto _exc = std::invalid_argument("ill-formed public key");
+            try {
+                const uint8_t* dat = s.get_data_inplace(bls::PrivateKey::PRIVATE_KEY_SIZE);
+                data = new bls::PrivateKey(bls::PrivateKey(bls::PrivateKey::FromBytes(dat)));
+            } catch (std::ios_base::failure &) {
+                throw _exc;
+            }
+        }
+
+        void from_rand() override {
+            bn_t b;
+            bn_new(b);
+            data = new bls::PrivateKey(bls::PrivateKey::FromBN(b));
+        }
+
+        inline pubkey_bt get_pubkey() const override;
+    };
+
+    pubkey_bt PrivKeyBLS::get_pubkey() const {
+        return new PubKeyBLS(*this);
+    }
+
+    PubKeyBLS::PubKeyBLS(const PrivKeyBLS &priv_key): PubKey() {
+        data = new bls::PublicKey(priv_key.data->GetPublicKey());
+    }
+
+    class SigSecBLS: public Serializable {
+
+        static void check_msg_length(const bytearray_t &msg) {
+            if (msg.size() != 32)
+                throw std::invalid_argument("the message should be 32-bytes");
+        }
+
+    public:
+        bls::InsecureSignature* data = nullptr;
+
+        SigSecBLS ():
+                Serializable(){}
+        SigSecBLS(const uint256_t &digest,
+                  const PrivKeyBLS &priv_key):
+                Serializable() {
+            sign(digest, priv_key);
+        }
+
+        SigSecBLS (const SigSecBLS &obj)
+        {
+            data = new bls::InsecureSignature(*(obj.data));
+        }
+
+        SigSecBLS (bls::InsecureSignature sig):
+                Serializable()
+                {
+                    data = new bls::InsecureSignature(sig);
+                }
+
+        ~SigSecBLS() override
+        {
+            delete data;
+            data = nullptr;
+        }
+
+        void serialize(DataStream &s) const override {
+            static uint8_t output[bls::InsecureSignature::SIGNATURE_SIZE];
+
+            int i = 0;
+            for (auto in : data->Serialize())
+            {
+                output[i++] = in;
+            }
+            s.put_data(output, output + bls::InsecureSignature::SIGNATURE_SIZE);
+        }
+
+        void unserialize(DataStream &s) override {
+            static const auto _exc = std::invalid_argument("ill-formed signature");
+            try {
+                data = new bls::InsecureSignature(bls::InsecureSignature::FromBytes(s.get_data_inplace(bls::InsecureSignature::SIGNATURE_SIZE)));
+            } catch (std::ios_base::failure &) {
+                throw _exc;
+            }
+        }
+
+        void sign(const bytearray_t &msg, const PrivKeyBLS &priv_key) {
+            check_msg_length(msg);
+            uint8_t* arr = (unsigned char *)&*msg.begin();
+            data = new bls::InsecureSignature(priv_key.data->SignInsecure(arr, sizeof(arr)));
+        }
+
+        bool verify(const bytearray_t &msg, const PubKeyBLS &pub_key) const {
+            check_msg_length(msg);
+            uint8_t* arr = (unsigned char *)&*msg.begin();
+
+            uint8_t hash[bls::BLS::MESSAGE_HASH_LEN];
+            bls::Util::Hash256(hash, arr, sizeof(arr));
+
+            return data->Verify({hash}, {*(pub_key.data)});
+        }
+    };
+
+    class SigVeriTaskBLS: public VeriTask {
+        uint256_t msg;
+        PubKeyBLS pubkey;
+        SigSecBLS sig;
+    public:
+        SigVeriTaskBLS(const uint256_t &msg,
+                          const PubKeyBLS &pubkey,
+                          const SigSecBLS &sig):
+                msg(msg), pubkey(pubkey), sig(sig) {}
+        virtual ~SigVeriTaskBLS() = default;
+
+        bool verify() override {
+            return sig.verify(msg, pubkey);
+        }
+    };
+
+    class PartCertBLS: public SigSecBLS, public PartCert {
+        uint256_t obj_hash;
+
+    public:
+        PartCertBLS() = default;
+        PartCertBLS(const PrivKeyBLS &priv_key, const uint256_t &obj_hash):
+                SigSecBLS(obj_hash, priv_key),
+                PartCert(),
+                obj_hash(obj_hash) { }
+
+        bool verify(const PubKey &pub_key) override {
+            return SigSecBLS::verify(obj_hash,
+                                     static_cast<const PubKeyBLS &>(pub_key));
+        }
+
+        promise_t verify(const PubKey &pub_key, VeriPool &vpool) override {
+            return vpool.verify(new SigVeriTaskBLS(obj_hash,
+                                                      static_cast<const PubKeyBLS &>(pub_key),
+                                                      static_cast<const SigSecBLS &>(*this)));
+        }
+
+        const uint256_t &get_obj_hash() const override { return obj_hash; }
+
+        PartCertBLS *clone() override {
+            return new PartCertBLS(*this);
+        }
+
+        void serialize(DataStream &s) const override {
+            s << obj_hash;
+            this->SigSecBLS::serialize(s);
+        }
+
+        void unserialize(DataStream &s) override {
+            s >> obj_hash;
+            this->SigSecBLS::unserialize(s);
+        }
+    };
+
+    class QuorumCertBLS: public QuorumCert {
+        uint256_t obj_hash;
+        salticidae::Bits rids;
+        std::unordered_map<ReplicaID, SigSecBLS> signatures;
+        SigSecBLS* theSig = nullptr;
+        size_t t;
+
+    public:
+        QuorumCertBLS() = default;
+        QuorumCertBLS(const ReplicaConfig &config, const uint256_t &obj_hash);
+        ~QuorumCertBLS()
+        {
+            delete theSig;
+            theSig = nullptr;
+        }
+
+        void add_part(ReplicaID rid, const PartCert &pc) override {
+            if (pc.get_obj_hash() != obj_hash)
+                throw std::invalid_argument("PartCert does match the block hash");
+            signatures.insert(std::make_pair(
+                    rid, static_cast<const PartCertBLS &>(pc)));
+            rids.set(rid);
+        }
+
+        void compute() override
+        {
+            std::vector<bls::InsecureSignature> sigShareOut;
+            std::vector<size_t> players;
+            players.reserve(signatures.size());
+
+            for(auto elem : signatures) {
+                players.push_back(elem.first + 1);
+                sigShareOut.push_back(*elem.second.data);
+            }
+
+            uint8_t* arr = (unsigned char *)&*obj_hash.to_bytes().begin();
+            theSig = new SigSecBLS(bls::Threshold::AggregateUnitSigs(sigShareOut, arr, sizeof(arr), &players[0], t));
+        }
+
+        bool verify(const ReplicaConfig &config) override;
+        promise_t verify(const ReplicaConfig &config, VeriPool &vpool) override;
+
+        const uint256_t &get_obj_hash() const override { return obj_hash; }
+
+        QuorumCertBLS *clone() override {
+            return new QuorumCertBLS(*this);
+        }
+
+        void serialize(DataStream &s) const override {
+            bool combined = (theSig != nullptr);
+            s << obj_hash << rids << combined;
+            if (combined) {
+                s << *theSig;
+            }
+            else {
+                for (size_t i = 0; i < rids.size(); i++)
+                    if (rids.get(i)) s << signatures.at(i);
+            }
+        }
+
+        void unserialize(DataStream &s) override {
+            bool combined;
+            s >> obj_hash >> rids >> combined;
+            if (combined) {
+                theSig = new SigSecBLS();
+                theSig->unserialize(s);
+            }
+            else {
+                for (size_t i = 0; i < rids.size(); i++)
+                    if (rids.get(i)) s >> signatures[i];
+            }
+        }
+    };
 
 }
 
