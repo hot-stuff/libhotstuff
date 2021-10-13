@@ -211,6 +211,11 @@ void HotStuffBase::propose_handler(MsgPropose &&msg, const Net::conn_t &conn) {
         LOG_WARN("invalid proposal from %d", prop.proposer);
         return;
     }
+    if (prop.proposer != pmaker->get_proposer())
+    {
+        LOG_WARN("received proposal from %d who is not the proposer", prop.proposer);
+        return;
+    }
     promise::all(std::vector<promise_t>{
         async_deliver_blk(blk->get_hash(), peer)
     }).then([this, prop = std::move(prop)]() {
