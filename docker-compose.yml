@@ -1,0 +1,41 @@
+version: '1'
+services:
+  hotstuff_container1:
+    image: hotstuff
+    environment:
+      - IMAGE_IDX=0
+    networks:
+      hotstuff_network:
+        ipv4_address: 172.18.0.2
+  hotstuff_container2:
+    image: hotstuff
+    environment:
+      - IMAGE_IDX=1
+    networks:
+      hotstuff_network:
+        ipv4_address: 172.18.0.3
+  hotstuff_container3:
+    image: hotstuff
+    environment:
+      - IMAGE_IDX=2
+    networks:
+      hotstuff_network:
+        ipv4_address: 172.18.0.4
+  hotstuff_container4:
+    image: hotstuff
+    environment:
+      - IMAGE_IDX=3
+    networks:
+      hotstuff_network:
+        ipv4_address: 172.18.0.5
+  hotstuff_client:
+    image: hotstuff_client
+    networks:
+      hotstuff_network:
+        ipv4_address: 172.18.0.6
+networks:
+  hotstuff_network:
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.18.0.0/16
